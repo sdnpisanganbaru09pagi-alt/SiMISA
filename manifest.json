@@ -1,0 +1,21 @@
+{
+  "name": "SiMISA — Peminjaman Barang",
+  "short_name": "SiMISA",
+  "description": "A web app for item lending.",
+  "start_url": "SiMISA_mobile_4.0.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#6c5ce7",
+  "icons": [
+    {
+      "src": "/path/to/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/path/to/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
