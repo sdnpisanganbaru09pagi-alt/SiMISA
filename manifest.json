@@ -2,8 +2,8 @@
   "name": "SiMISA — Peminjaman Barang",
   "short_name": "SiMISA",
   "description": "Aplikasi Peminjaman Aset Sekolah (Offline Ready).",
-  "start_url": "./index.html",
-  "scope": "./",
+  "start_url": "/SiMISA/",
+  "scope": "/SiMISA/",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#6c5ce7",
@@ -21,3 +21,4 @@
     }
   ]
 }
+
