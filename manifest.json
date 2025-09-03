@@ -20,5 +20,8 @@
   ],
   "orientation": "portrait",
   "id": "index.html",
-  "lang": "id"
+  "categories": [
+    "productivity",
+    "utilities"
+  ]
 }
