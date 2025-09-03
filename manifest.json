@@ -20,8 +20,6 @@
   ],
   "orientation": "portrait",
   "id": "index.html",
-  "categories": [
-    "productivity",
-    "utilities"
-  ]
+  "dir": "auto",
+  "scope": "./index.html"
 }
