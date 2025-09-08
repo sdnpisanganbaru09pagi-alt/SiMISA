@@ -17,6 +17,31 @@ if ("serviceWorker" in navigator) {
   - Kept functionality unchanged where possible
 */
 
+let deferredPrompt;
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+
+  // Show your own install button
+  const installBtn = document.createElement("button");
+  installBtn.textContent = "📲 Install Aplikasi";
+  installBtn.className = "btn primary";
+  installBtn.style.position = "fixed";
+  installBtn.style.bottom = "20px";
+  installBtn.style.right = "20px";
+  installBtn.style.zIndex = "9999";
+  document.body.appendChild(installBtn);
+
+  installBtn.addEventListener("click", async () => {
+    installBtn.remove();
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`User response: ${outcome}`);
+    deferredPrompt = null;
+  });
+});
+
 const DB_NAME = 'simisa_photos';
 const DB_STORE = 'photos';
 let db;
