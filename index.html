@@ -1,135 +1,161 @@
 <!DOCTYPE html>
-
 <html lang="id">
 <head>
   <link rel="manifest" href="manifest.json" />
-<meta name="theme-color" content="#6c5ce7" />
-<meta charset="utf-8"/>
-<meta content="width=device-width,initial-scale=1,maximum-scale=1" name="viewport"/>
-<title>SiMISA — Aplikasi Peminjaman Aset Sekolah</title>
-<link rel="stylesheet" href="style.css">
+  <meta name="theme-color" content="#6c5ce7" />
+  <meta charset="utf-8"/>
+  <meta content="width=device-width,initial-scale=1,maximum-scale=1" name="viewport"/>
+  <title>SiMISA — Aplikasi Peminjaman Aset Sekolah</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div aria-label="SiMISA Aplikasi Peminjaman Aset Sekolah" class="app" role="application">
 <header class="header">
-<div class="brand">
-<div aria-hidden="true" class="logo" style="background:none;padding:0;">
-<img alt="SiMISA logo" src="logo.webp" style="width:50px;height:50px;border-radius:10px;"/>
-</div>
-<div>
-<div class="title">SiMISA</div>
-<div class="subtitle">Aplikasi Peminjaman Aset Sekolah.</div>
-<div class="subtitle">Oleh : Twin Insani, S.Kom.</div>
-</div>
-</div>
-<div class="header-actions">
-</div>
+  <div class="brand">
+    <div aria-hidden="true" class="logo" style="background:none;padding:0;">
+      <img alt="SiMISA logo" src="logo.webp" style="width:50px;height:50px;border-radius:10px;"/>
+    </div>
+    <div>
+      <div class="title">SiMISA</div>
+      <div class="subtitle">Aplikasi Peminjaman Aset Sekolah.</div>
+    </div>
+  </div>
+  <div class="header-actions"></div>
 </header>
+
 <main class="main">
-<nav aria-label="Main tabs" class="tabs" role="tablist">
-<button aria-selected="true" class="tab active" data-tab="dashboard" role="tab">Dasbor</button>
-<button class="tab" data-tab="manage" role="tab">Kelola Barang</button>
-<button class="tab" data-tab="borrow" role="tab">Pinjam</button>
-<button class="tab" data-tab="return" role="tab">Kembalikan</button>
-<button class="tab" data-tab="history" role="tab">Riwayat</button>
-<button class="tab" data-tab="backup" role="tab">Managemen Data</button></nav>
-<section class="view" id="dashboard" role="tabpanel">
-<div aria-hidden="false" class="stats">
-<div class="stat"><div class="n" id="totalN">0</div><div class="label">Total</div></div>
-<div class="stat"><div class="n" id="availN">0</div><div class="label">Tersedia</div></div>
-<div class="stat"><div class="n" id="borrowedN">0</div><div class="label">Dipinjam</div></div>
-</div>
-<div class="search">
-<input aria-label="Cari barang" id="q" placeholder="Cari barang, kategori, peminjam..." type="search"/>
-<button class="btn ghost" id="clearSearch" title="Hapus pencarian">Bersihkan</button>
-</div>
-<div class="actions" id="dashboardFilters" style="margin-bottom:10px; gap:5px; flex-wrap:wrap">
-<button class="btn ghost active" data-dash-filter="all" type="button">Semua</button>
-<button class="btn ghost" data-dash-filter="available" type="button">Tersedia</button>
-<button class="btn ghost" data-dash-filter="borrowed" type="button">Dipinjam</button>
-</div>
-<div aria-live="polite" class="list" id="items"></div>
-</section>
-<section class="view" hidden="" id="manage">
-<div class="meta" style="font-weight:bold;margin-bottom:5px;font-size:1.1em;color:#22c55e;">📦 Tambah Barang Baru</div>
-<div style="background:#ffffff;border:1px solid #ddd;padding:10px;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,0.1);margin-bottom:10px;">
-<form autocomplete="off" class="form" id="addForm">
-<input class="input" id="name" placeholder="Nama barang" required="" type="text"/>
-<input class="input" id="category" placeholder="Kategori (opsional)" type="text"/>
-<input class="input" id="desc" placeholder="Deskripsi singkat (opsional)" type="text"/>
-<div class="hr"></div>
-<button class="btn primary" type="submit">Tambah barang</button>
-</form>
-</div>
-<div class="hr"></div>
-<div class="search">
-<input aria-label="Cari barang" id="manageSearch" placeholder="Cari barang..." type="search"/>
-<button class="btn ghost" id="clearManageSearch" title="Hapus pencarian">Bersihkan</button>
-</div>
-<div class="actions" style="margin-bottom:10px; gap:5px; flex-wrap:wrap">
-<button class="btn ghost" data-filter="all" type="button">Semua</button>
-<button class="btn ghost" data-filter="available" type="button">Tersedia</button>
-<button class="btn ghost" data-filter="borrowed" type="button">Dipinjam</button>
-</div>
-<div class="list" id="manageList"></div>
-</section>
-<section class="view" hidden="" id="borrow">
-<form class="form" id="borrowForm">
-<select class="select" id="borrowSelect" required="">
-<option value="">Pilih barang yang tersedia…</option>
-</select>
-<input class="input" id="borrower" placeholder="Nama peminjam" required="" type="text"/>
-<label for="borrowDate" style="display:block;margin-bottom:4px;">Tanggal pinjam</label><input class="input" id="borrowDate" required="" type="date"/>
-<label for="expectedReturn" style="display:block;margin-bottom:4px;">Perkiraan pengembalian</label><input class="input" id="expectedReturn" min="2025-08-12" placeholder="Perkiraan pengembalian (opsional)" type="date"/>
-<div class="photo-upload-container" id="borrowPhotoContainer">
-<input accept="image/*" capture="environment" id="borrowPhoto" name="borrowPhoto" type="file"/>
-<div class="upload-placeholder">
-<div class="upload-icon">📷</div>
-<p>Tambah Foto</p>
-<small>Tap untuk ambil foto</small>
-</div>
-<div class="photo-preview" id="borrowPreview"></div>
-</div>
-<div class="hr"></div>
-<button class="btn primary" type="submit">Catat peminjaman</button>
-</form>
-</section>
-<section class="view" hidden="" id="return">
-<form class="form" id="returnForm">
-<select class="select" id="returnSelect" required="">
-<option value="">Pilih barang yang dipinjam…</option>
-</select>
-<label for="returnDate" style="display:block;margin-bottom:4px;">Tanggal kembali</label><input class="input" id="returnDate" required="" type="date">
-<div class="photo-upload-container" id="returnPhotoContainer">
-<input accept="image/*" capture="environment" id="returnPhoto" name="returnPhoto" type="file"/>
-<div class="upload-placeholder">
-<div class="upload-icon">📷</div>
-<p>Tambah Foto</p>
-<small>Tap untuk ambil foto</small>
-</div>
-<div class="photo-preview" id="returnPreview"></div>
-</div>
-<div class="hr"></div>
-<button class="btn primary" type="submit">Catat pengembalian</button>
-</input></form>
-</section>
-<section class="view" hidden="" id="history">
-<div class="actions" style="margin-bottom:10px">
-<input class="input" id="historyMonth" style="max-width:200px" type="month">
-<button class="btn ghost" id="clearMonth">Bersihkan</button>
-<button class="btn ghost" id="exportMonthPdf">Ekspor PDF</button>
-</input></div>
-<div class="list" id="historyList"></div>
-</section>
-<section class="view" hidden="" id="backup"><div class="actions"><button class="btn ghost" id="exportBtn" title="Ekspor data">Ekspor</button><button class="btn ghost" id="importBtn" title="Impor data">Impor</button><button class="btn ghost" id="clearAll">Hapus semua</button></div></section></main>
+  <nav aria-label="Main tabs" class="tabs" role="tablist">
+    <button aria-selected="true" class="tab active" data-tab="dashboard" role="tab">Dasbor</button>
+    <button class="tab" data-tab="manage" role="tab">Kelola Barang</button>
+    <button class="tab" data-tab="borrow" role="tab">Pinjam</button>
+    <button class="tab" data-tab="return" role="tab">Kembalikan</button>
+    <button class="tab" data-tab="history" role="tab">Riwayat</button>
+    <button class="tab" data-tab="backup" role="tab">Managemen Data</button>
+  </nav>
+
+  <section class="view" id="dashboard" role="tabpanel">
+    <div aria-hidden="false" class="stats">
+      <div class="stat"><div class="n" id="totalN">0</div><div class="label">Total Barang</div></div>
+      <div class="stat"><div class="n" id="availN">0</div><div class="label">Barang Tersedia</div></div>
+      <div class="stat"><div class="n" id="borrowedN">0</div><div class="label">Barang Dipinjam</div></div>
+    </div>
+    <div class="search">
+      <input aria-label="Cari barang" id="q" placeholder="Cari barang, kategori, peminjam..." type="search"/>
+      <button class="btn ghost" id="clearSearch" title="Hapus pencarian">Bersihkan</button>
+    </div>
+    <div class="actions" id="dashboardFilters" style="margin-bottom:10px; gap:5px; flex-wrap:wrap">
+      <button class="btn ghost active" data-dash-filter="all" type="button">Semua</button>
+      <button class="btn ghost" data-dash-filter="available" type="button">Barang Tersedia</button>
+      <button class="btn ghost" data-dash-filter="borrowed" type="button">Barang Dipinjam</button>
+    </div>
+    <div aria-live="polite" class="list" id="items"></div>
+  </section>
+
+  <section class="view" hidden id="manage">
+    <div class="meta" style="font-weight:bold;margin-bottom:5px;font-size:1.1em;color:#22c55e;">📦 Tambah Barang Baru</div>
+    <div style="background:#ffffff;border:1px solid #ddd;padding:10px;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,0.1);margin-bottom:10px;">
+      <form autocomplete="off" class="form" id="addForm">
+        <input class="input" id="name" placeholder="Nama barang" required type="text"/>
+        <input class="input" id="category" placeholder="Kategori (opsional)" type="text"/>
+        <input class="input" id="desc" placeholder="Deskripsi singkat (opsional)" type="text"/>
+        <div class="hr"></div>
+        <button class="btn primary" type="submit">Tambah barang</button>
+      </form>
+    </div>
+    <div class="hr"></div>
+    <div class="search">
+      <input aria-label="Cari barang" id="manageSearch" placeholder="Cari barang..." type="search"/>
+      <button class="btn ghost" id="clearManageSearch" title="Hapus pencarian">Bersihkan</button>
+    </div>
+    <div class="actions" style="margin-bottom:10px; gap:5px; flex-wrap:wrap">
+      <button class="btn ghost" data-filter="all" type="button">Semua</button>
+      <button class="btn ghost" data-filter="available" type="button">Barang Tersedia</button>
+      <button class="btn ghost" data-filter="borrowed" type="button">Barang Dipinjam</button>
+    </div>
+    <div class="list" id="manageList"></div>
+  </section>
+
+  <section class="view" hidden id="borrow">
+    <form class="form" id="borrowForm">
+      <select class="select" id="borrowSelect" required>
+        <option value="">Pilih barang yang tersedia…</option>
+      </select>
+      <input class="input" id="borrower" placeholder="Nama peminjam" required type="text"/>
+      <label for="borrowDate" style="display:block;margin-bottom:4px;">Tanggal Peminjaman</label>
+      <input class="input" id="borrowDate" required type="date"/>
+      <label for="expectedReturn" style="display:block;margin-bottom:4px;">Perkiraan Pengembalian</label>
+      <input class="input" id="expectedReturn" placeholder="Perkiraan pengembalian (opsional)" type="date"/>
+      <div class="photo-upload-container" id="borrowPhotoContainer">
+        <input accept="image/*" capture="environment" id="borrowPhoto" name="borrowPhoto" type="file"/>
+        <div class="upload-placeholder">
+          <div class="upload-icon">📷</div>
+          <p>Ambil Foto</p>
+          <small>Ketuk untuk ambil foto</small>
+        </div>
+        <div class="photo-preview" id="borrowPreview"></div>
+      </div>
+      <div class="hr"></div>
+      <button class="btn primary" type="submit">Catat Peminjaman</button>
+    </form>
+  </section>
+
+  <section class="view" hidden id="return">
+    <form class="form" id="returnForm">
+      <select class="select" id="returnSelect" required>
+        <option value="">Pilih barang yang dipinjam…</option>
+      </select>
+      <label for="returnDate" style="display:block;margin-bottom:4px;">Tanggal Pengembalian</label>
+      <input class="input" id="returnDate" required type="date"/>
+      <div class="photo-upload-container" id="returnPhotoContainer">
+        <input accept="image/*" capture="environment" id="returnPhoto" name="returnPhoto" type="file"/>
+        <div class="upload-placeholder">
+          <div class="upload-icon">📷</div>
+          <p>Ambil Foto</p>
+          <small>Ketuk untuk ambil foto</small>
+        </div>
+        <div class="photo-preview" id="returnPreview"></div>
+      </div>
+      <div class="hr"></div>
+      <button class="btn primary" type="submit">Catat pengembalian</button>
+    </form>
+  </section>
+
+  <section class="view" hidden id="history">
+    <div class="actions" style="margin-bottom:10px">
+      <input class="input wide-month" id="historyMonth" type="month">
+      <button class="btn export-pdf" id="exportMonthPdf">📄 Ekspor PDF</button>
+    </div>
+    <div class="list" id="historyList"></div>
+  </section>
+
+  <section class="view" hidden id="backup">
+    <div class="actions horizontal-actions">
+      <button class="btn export" id="exportBtn" title="Ekspor data">Ekspor Data</button>
+      <button class="btn import" id="importBtn" title="Impor data">Impor Data</button>
+      <button class="btn danger" id="clearAll">Hapus Data</button>
+    </div>
+  </section>
+</main>
+
 <footer class="footer">
-<div class="small">Data disimpan di browser Anda (localStorage). Dapat digunakan tanpa internet.</div>
+  <div class="small">Data disimpan di perangkat Anda, dapat digunakan tanpa internet.</div>
+  <div class="small">Dikembangkan Oleh : Twin Insani, S.Kom.</div>
 </footer>
-</div>
 
 <script src="jspdf.umd.min.js"></script>
 <script src="jspdf.plugin.autotable.min.js"></script>
 <script src="app.js"></script>
+</div>
+
+<div id="progressOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; display:flex; align-items:center; justify-content:center;">
+  <div style="background:white; padding:20px; border-radius:12px; width:90%; max-width:320px; text-align:center; box-shadow:0 6px 18px rgba(0,0,0,0.3);">
+    <div id="progressText" style="margin-bottom:10px; font-weight:600;">Proses Berjalan...</div>
+    <div style="background:#eee; border-radius:8px; overflow:hidden; height:16px;">
+      <div id="progressBar" style="background:linear-gradient(90deg,var(--accent-1),var(--accent-2)); height:100%; width:0%; transition:width 0.3s;"></div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

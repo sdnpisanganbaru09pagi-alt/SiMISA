@@ -7,19 +7,27 @@ if ("serviceWorker" in navigator) {
 }
 ;
 /*
-  Careful, incremental optimization:
-  - LRU photo cache (limits memory)
-  - Object URL management (revoke on eviction)
-  - Batched photo fetching for responsiveness
-  - Chunked DOM rendering with cancellation token to avoid blocking
-  - Bugfixes: removed references to undefined variables and corrected cache clearing
-  - Defensive try/catch on async operations to avoid fatal exceptions
+  Patched & cleaned version of app.js
+  - Replaced alert() usage with showToast()
+  - Translated remaining English UI strings to Indonesian
+  - Removed duplicate/unused code (duplicate expectedReturn min setters, duplicate listeners)
+  - Fixed photo preview HTML bug
+  - Consolidated manageList event delegation into a single handler
+  - Removed small duplicate assignments
+  - Kept functionality unchanged where possible
 */
 
 const DB_NAME = 'simisa_photos';
 const DB_STORE = 'photos';
 let db;
-function openDB(){ return new Promise((resolve,reject)=>{ const req = indexedDB.open(DB_NAME,1); req.onupgradeneeded = e=>{ db = e.target.result; if(!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE); }; req.onsuccess = e=>{ db = e.target.result; resolve(db); }; req.onerror = e=> reject(e); }); }
+function openDB(){
+  return new Promise((resolve,reject)=>{
+    const req = indexedDB.open(DB_NAME,1);
+    req.onupgradeneeded = e=>{ db = e.target.result; if(!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE); };
+    req.onsuccess = e=>{ db = e.target.result; resolve(db); };
+    req.onerror = e=> reject(e);
+  });
+}
 async function putPhoto(id, blob){ if(!db) await openDB(); return new Promise((resolve,reject)=>{ const tx = db.transaction(DB_STORE,'readwrite'); tx.objectStore(DB_STORE).put(blob, id); tx.oncomplete = ()=> resolve(id); tx.onerror = e=> reject(e); }); }
 async function getPhoto(id){ if(!db) await openDB(); return new Promise((resolve,reject)=>{ const tx = db.transaction(DB_STORE,'readonly'); const req = tx.objectStore(DB_STORE).get(id); req.onsuccess = ()=> resolve(req.result || null); req.onerror = e=> reject(e); }); }
 
@@ -97,9 +105,21 @@ function formatDate(s){ if(!s) return ''; const d = new Date(s); if(isNaN(d)) re
 function escapeHtml(s){ return (s+'').replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 function downloadText(filename, text){ const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type:'application/json'})); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); try{ URL.revokeObjectURL(a.href); }catch(e){} }
 
-function showView(id){
-  document.querySelectorAll('.view').forEach(v => v.hidden = true);
+let lastView = null;
 
+function showView(id) {
+  // reset when leaving
+  if (lastView === 'borrow' && id !== 'borrow') {
+    resetPhotoFrame('borrowPhotoContainer', 'borrowPhoto', 'borrowPreview');
+    if (el('borrowForm')) el('borrowForm').reset();
+  }
+  if (lastView === 'return' && id !== 'return') {
+    resetPhotoFrame('returnPhotoContainer', 'returnPhoto', 'returnPreview');
+    if (el('returnForm')) el('returnForm').reset();
+  }
+
+  // switch view
+  document.querySelectorAll('.view').forEach(v => v.hidden = true);
   const target = document.getElementById(id);
   if (target) {
     target.hidden = false;
@@ -107,45 +127,38 @@ function showView(id){
     setTimeout(() => target.classList.remove('fade-in'), 400);
   }
 
+  // update tabs
   document.querySelectorAll('.tab').forEach(t =>
-    t.classList.toggle('active', t.dataset.tab===id)
+    t.classList.toggle('active', t.dataset.tab === id)
   );
 
   const today = new Date().toISOString().split('T')[0];
-
   if (id === 'borrow') {
-    el('borrowDate').value = today;
-    el('borrowDate').readOnly = true;
-    el('expectedReturn').value = today;
-    resetPhotoFrame('borrowPhotoContainer', 'borrowPhoto', 'borrowPreview'); // clear borrow photo // always default to today
-
-    // CLEAR the borrower name field every time switch to borrow tab
+    if (el('borrowDate')) {
+      el('borrowDate').value = today;
+      el('borrowDate').readOnly = true;
+    }
+    if (el('expectedReturn')) {
+      el('expectedReturn').value = today;
+    }
     if (el('borrower')) el('borrower').value = '';
   }
   if (id === 'return') {
-    el('returnDate').value = today;
-    el('returnDate').readOnly = true;
-    resetPhotoFrame('returnPhotoContainer', 'returnPhoto', 'returnPreview'); // clear return photo
-  }
-  if(id==='borrow' || id==='return') populateSelects();
-  
-  if(id==='manage'){
-    if(el('manageSearch')) el('manageSearch').value = '';
-    manageFilter = 'all';
-    renderManage();
-    if(!document.body.dataset.manageBound){
-      document.querySelectorAll('#manage [data-filter]').forEach(btn => {
-        btn.addEventListener('click', ()=> { 
-          manageFilter = btn.dataset.filter; 
-          renderManage(); 
-        });
-      });
-      if(el('manageSearch')) el('manageSearch').addEventListener('input', ()=> renderManage());
-      document.body.dataset.manageBound = '1';
+    if (el('returnDate')) {
+      el('returnDate').value = today;
+      el('returnDate').readOnly = true;
     }
   }
-}
+  if (id === 'borrow' || id === 'return') populateSelects();
 
+  if (id === 'manage') {
+    if (el('manageSearch')) el('manageSearch').value = '';
+    manageFilter = 'all';
+    renderManage();
+  }
+
+  lastView = id;
+}
 
 
 /* --- UI rendering with chunking and cancellation tokens --- */
@@ -215,7 +228,7 @@ async function renderDashboardList(){
   });
 
   if(list.length===0){
-    itemsWrap.innerHTML = '<div class="card"><div class="meta">No items found — add one.</div></div>';
+    itemsWrap.innerHTML = '<div class="card"><div class="meta">Tidak ada barang yang ditemukan.</div></div>';
     return;
   }
 
@@ -305,11 +318,11 @@ async function renderHistoryList(){
 }
 
 function populateSelects(){
-  const borrowSel = el('borrowSelect'); borrowSel.innerHTML = '<option value="">Pilih barang yang tersedia…</option>';
-  const returnSel = el('returnSelect'); returnSel.innerHTML = '<option value="">Pilih barang yang dipinjam…</option>';
+  const borrowSel = el('borrowSelect'); if(borrowSel) borrowSel.innerHTML = '<option value="">Pilih barang yang tersedia…</option>';
+  const returnSel = el('returnSelect'); if(returnSel) returnSel.innerHTML = '<option value="">Pilih barang yang dipinjam…</option>';
   for(const it of state.items){
-    if(it.status==='available') borrowSel.insertAdjacentHTML('beforeend', `<option value="${it.id}">${escapeHtml(it.name)} ${it.category? ' ('+escapeHtml(it.category)+')':''}</option>`);
-    if(it.status==='borrowed') returnSel.insertAdjacentHTML('beforeend', `<option value="${it.id}">${escapeHtml(it.name)} — ${escapeHtml(it.borrowedBy||'')}</option>`);
+    if(it.status==='available' && borrowSel) borrowSel.insertAdjacentHTML('beforeend', `<option value="${it.id}">${escapeHtml(it.name)} ${it.category? ' ('+escapeHtml(it.category)+')':''}</option>`);
+    if(it.status==='borrowed' && returnSel) returnSel.insertAdjacentHTML('beforeend', `<option value="${it.id}">${escapeHtml(it.name)} — ${escapeHtml(it.borrowedBy||'')}</option>`);
   }
 }
 
@@ -317,12 +330,13 @@ function populateSelects(){
 let manageFilter = 'all';
 let dashboardFilter = 'all';
 function renderManage(highlightId=null){
-  const wrap = el('manageList'); wrap.innerHTML='';
+  const wrap = el('manageList'); if(!wrap) return;
+  wrap.innerHTML='';
   let items = [...state.items];
   if(manageFilter !== 'all') items = items.filter(it => it.status === manageFilter);
   const query = el('manageSearch')?.value.trim().toLowerCase() || '';
   if(query) items = items.filter(it => (it.name || '').toLowerCase().includes(query) || (it.category || '').toLowerCase().includes(query) || (it.desc || '').toLowerCase().includes(query));
-  if(items.length === 0){ wrap.innerHTML = '<div class="card"><div class="meta">No items to manage.</div></div>'; return; }
+  if(items.length === 0){ wrap.innerHTML = '<div class="card"><div class="meta">Tidak ada barang yang ditemukan.</div></div>'; return; }
 
   const newest = items[items.length - 1];
   const sorted = items.slice(0, -1).sort((a,b) => (a.name || '').localeCompare(b.name || ''));
@@ -353,13 +367,13 @@ function renderManage(highlightId=null){
   wrap.appendChild(frag);
 }
 
-/* Photo processing (unchanged core but with safe guards) */
+/* Photo processing (fixed preview bug) */
 function resizeImage(file, maxW, maxH){ return new Promise((resolve)=>{ const img = new Image(); const reader = new FileReader(); reader.onload = e=>{ img.onload = ()=>{ const canvas = document.createElement('canvas'); let { width, height } = img; if (width > maxW || height > maxH){ const scale = Math.min(maxW / width, maxH / height); width *= scale; height *= scale; } canvas.width = width; canvas.height = height; canvas.getContext('2d').drawImage(img, 0, 0, width, height); let quality = 0.8; if (file.size > 2 * 1024 * 1024) quality = 0.6; else if (file.size > 1 * 1024 * 1024) quality = 0.7; resolve(canvas.toDataURL('image/webp', quality)); }; img.onerror = ()=> resolve(null); img.src = e.target.result; }; reader.onerror = ()=> resolve(null); reader.readAsDataURL(file); }); }
 
 async function processPhotoInput(file, previewEl) {
   try{
     if (!file) return null;
-    if (file.size > 5 * 1024 * 1024) { alert('Maks 5MB'); return null; }
+    if (file.size > 5 * 1024 * 1024) { showToast('Maks 5MB','warning'); return null; }
     const resizedData = await resizeImage(file, 1024, 1024);
     if(!resizedData) return null;
     const blob = await (await fetch(resizedData)).blob();
@@ -368,9 +382,9 @@ async function processPhotoInput(file, previewEl) {
     // Use object URL for preview and cache both blob & url
     photoCache.set(photoId, blob);
     const url = getObjectURLFor(photoId, blob);
-    previewEl.innerHTML = `<img`;
-        if (typeof showToast === 'function') { showToast('Foto ditambahkan'); }
-        previewEl.innerHTML = `<img src="${url}" alt="preview">`;
+    // fixed: removed broken assignment and set proper img markup
+    previewEl.innerHTML = `<img src="${url}" alt="preview">`;
+    if (typeof showToast === 'function') { showToast('Foto Ditambahkan', 'success'); }
     previewEl.hidden = false;
     _ensureCacheLimit();
     return photoId;
@@ -383,8 +397,9 @@ async function processPhotoInput(file, previewEl) {
 /* --- Event wiring (one-time) --- */
 document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', e=> { showView(t.dataset.tab); }));
 if(el('q')) el('q').addEventListener('input', throttle(()=> renderDashboardList(), 180));
-el('clearSearch').addEventListener('click', ()=> { el('q').value=''; renderDashboardList(); });
+if(el('clearSearch')) el('clearSearch').addEventListener('click', ()=> { el('q').value=''; renderDashboardList(); });
 
+// dashboard filters
 document.querySelectorAll('#dashboardFilters [data-dash-filter]').forEach(btn => {
   btn.addEventListener('click', () => {
     dashboardFilter = btn.dataset.dashFilter;
@@ -394,57 +409,79 @@ document.querySelectorAll('#dashboardFilters [data-dash-filter]').forEach(btn =>
   });
 });
 
-if(el('addForm')) el('addForm').addEventListener('submit', e=> { e.preventDefault(); try{ const name = el('name').value.trim(); if(!name) return alert('Masukkan nama'); const item = { id: uid('itm'), name, category: el('category').value.trim(), desc: el('desc').value.trim(), status:'available' }; state.items.unshift(item); save(); el('addForm').reset(); renderManage(item.id); renderStats(); renderDashboardList(); showToast('Barang ditambahkan', 'success'); }catch(err){ console.error(err); showToast('Gagal menambah barang','danger'); } });
+if(el('addForm')) el('addForm').addEventListener('submit', e=> { e.preventDefault(); try{ const name = el('name').value.trim(); if(!name) { showToast('Masukkan nama', 'warning'); return; } const item = { id: uid('itm'), name, category: el('category').value.trim(), desc: el('desc').value.trim(), status:'available' }; state.items.unshift(item); save(); el('addForm').reset(); renderManage(item.id); renderStats(); renderDashboardList(); showToast('Barang ditambahkan', 'success'); }catch(err){ console.error(err); showToast('Gagal menambah barang','danger'); } });
 
 /* Borrow/Return forms */
 if(el('borrowForm')) el('borrowForm').addEventListener('submit', async e=> {
-  e.preventDefault();
-  try{
-    const id = el('borrowSelect').value; if(!id) return alert('Pilih barang');
-    const borrower = el('borrower').value.trim(); if(!borrower) return alert('Masukkan nama peminjam');
-    const bDate = new Date().toISOString().split('T')[0];
-    const exp = el('expectedReturn').value || '';
-    const photoId = el('borrowPhoto').dataset.photoId || null;
-    if (!photoId) return showToast('Harap ambil foto saat meminjam', 'warning');
-    const item = state.items.find(x=>x.id===id);
-    if (!item) return alert('Barang tidak ditemukan');
-    item.status = 'borrowed'; item.borrowedBy = borrower; item.borrowDate = bDate; item.expectedReturn = exp; if (photoId) item.photo = photoId;
-    state.history.push({ action: 'borrowed', itemId: id, itemName: item.name, borrower, date: bDate, expectedReturn: exp || '', photo: photoId || item.photo || null });
-    save();
-    el('borrowForm').reset(); el('borrowPreview').hidden = true;
-    populateSelects();
-    renderStats(); await renderDashboardList(); renderHistoryList();
-    showView('dashboard');
-    showToast('Peminjaman tercatat');
-    resetPhotoFrame('borrowPhotoContainer','borrowPhoto','borrowPreview', 'success');
-  }catch(err){
-    console.error(err);
-    showToast('Gagal mencatat peminjaman','danger');
-  }
+e.preventDefault();
+try{
+const id = el('borrowSelect').value; if(!id) return showToast('Pilih barang', 'warning');
+const borrower = el('borrower').value.trim(); if(!borrower) { showToast('Masukkan nama peminjam', 'warning'); return; }
+const bDate = new Date().toISOString().split('T')[0];
+const exp = el('expectedReturn').value || '';
+const photoInput = el('borrowPhoto');
+photoInput.setAttribute('required', 'true'); // 🔒 enforce via HTML5
+const photoId = photoInput.dataset.photoId || null;
+if (!photoId) { showToast('Harap ambil foto saat meminjam', 'warning'); return; }
+const item = state.items.find(x=>x.id===id);
+if (!item) return showToast('Barang tidak ditemukan', 'danger');
+item.status = 'borrowed'; item.borrowedBy = borrower; item.borrowDate = bDate; item.expectedReturn = exp; item.photo = photoId;
+state.history.push({ action: 'borrowed', itemId: id, itemName: item.name, borrower, date: bDate, expectedReturn: exp || '', photo: photoId });
+save();
+el('borrowForm').reset(); el('borrowPreview').hidden = true;
+resetPhotoFrame('borrowPhotoContainer','borrowPhoto','borrowPreview');
+populateSelects();
+renderStats(); await renderDashboardList(); renderHistoryList();
+showView('dashboard');
+showToast('Peminjaman tercatat');
+}catch(err){
+console.error(err);
+showToast('Gagal mencatat peminjaman','danger');
+}
 });
 
+
 if(el('returnForm')) el('returnForm').addEventListener('submit', async e=> {
-  e.preventDefault();
-  try{
-    const id = el('returnSelect').value; if(!id) return alert('Pilih barang');
-    const rDate = new Date().toISOString().split('T')[0];
-    const photo = el('returnPhoto').dataset.photoId || null;
-    if (!photo) return showToast('Harap ambil foto saat pengembalian', 'warning');
-    const item = state.items.find(x=>x.id===id); if(!item) return alert('Barang tidak ditemukan');
-    state.history.push({ action:'returned', itemId:id, itemName:item.name, borrower: item.borrowedBy || null, date:rDate, photo });
-    item.status='available'; item.borrowedBy=null; item.borrowDate=null; item.expectedReturn=null; if(photo) item.photo = photo;
-    save();
-    el('returnForm').reset(); el('returnPreview').hidden=true;
-    populateSelects();
-    renderStats(); await renderDashboardList(); renderHistoryList();
-    showView('dashboard');
-    showToast('Pengembalian tercatat');
-    resetPhotoFrame('returnPhotoContainer','returnPhoto','returnPreview', 'success');
-  }catch(err){
-    console.error(err);
-    showToast('Gagal mencatat pengembalian','danger');
-  }
+e.preventDefault();
+try{
+const id = el('returnSelect').value; if(!id) return showToast('Pilih barang', 'warning');
+const rDate = new Date().toISOString().split('T')[0];
+const photoInput = el('returnPhoto');
+photoInput.setAttribute('required', 'true'); // 🔒 enforce via HTML5
+const photoId = photoInput.dataset.photoId || null;
+if (!photoId) { showToast('Harap ambil foto saat pengembalian', 'warning'); return; }
+const item = state.items.find(x=>x.id===id); if(!item) { showToast('Barang tidak ditemukan', 'danger'); return; }
+state.history.push({ action:'returned', itemId:id, itemName:item.name, borrower: item.borrowedBy || null, date:rDate, photo: photoId });
+item.status='available'; item.borrowedBy=null; item.borrowDate=null; item.expectedReturn=null; item.photo = photoId;
+save();
+el('returnForm').reset(); el('returnPreview').hidden=true;
+resetPhotoFrame('returnPhotoContainer','returnPhoto','returnPreview');
+populateSelects();
+renderStats(); await renderDashboardList(); renderHistoryList();
+showView('dashboard');
+showToast('Pengembalian tercatat');
+}catch(err){
+console.error(err);
+showToast('Gagal mencatat pengembalian','danger');
+}
 });
+
+
+// resetPhotoFrame now also clears dataset.photoId
+function resetPhotoFrame(containerId, inputId, previewId) {
+const container = document.getElementById(containerId);
+const inputEl = document.getElementById(inputId);
+const previewEl = document.getElementById(previewId);
+if(inputEl) {
+inputEl.value = '';
+inputEl.dataset.photoId = '';
+inputEl.removeAttribute('required'); // reset required state after submit
+}
+if(previewEl) previewEl.innerHTML = '';
+if(container) container.classList.remove('has-image');
+const btn = container ? container.querySelector('.btn-remove-photo') : null;
+if (btn) btn.remove();
+}
 
 /* Photo inputs */
 if(el('borrowPhoto')) el('borrowPhoto').addEventListener('change', async e => {
@@ -484,14 +521,13 @@ if(el('returnPhoto')) el('returnPhoto').addEventListener('change', async e => {
 
 /* history month */
 if(el('historyMonth')) el('historyMonth').addEventListener('input', ()=> { renderHistoryList(); });
-if(el('clearMonth')) el('clearMonth').addEventListener('click', () => { el('historyMonth').value = ''; renderHistoryList(); });
 
 /* export/import/clear (improved backup handling) */
 
 if (el('exportMonthPdf')) el('exportMonthPdf').addEventListener('click', () => {
   try {
     const selectedMonth = el('historyMonth').value;
-    if (!selectedMonth) return alert("Silakan pilih bulan terlebih dahulu.");
+    if (!selectedMonth) return showToast("Silakan pilih bulan terlebih dahulu.", "warning");
 
     const [year, month] = selectedMonth.split('-');
     const monthName = new Date(`${selectedMonth}-01`).toLocaleString('id-ID', { month: 'long' });
@@ -502,7 +538,7 @@ if (el('exportMonthPdf')) el('exportMonthPdf').addEventListener('click', () => {
       return date.toISOString().slice(0, 7) === selectedMonth;
     }).sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    if (monthData.length === 0) return alert("Tidak ada data untuk bulan ini.");
+    if (monthData.length === 0) return showToast("Tidak ada data untuk bulan ini.", "info");
 
     // 🔥 Group by borrower + item
     const grouped = {};
@@ -555,7 +591,7 @@ if (el('exportMonthPdf')) el('exportMonthPdf').addEventListener('click', () => {
     doc.save(`Riwayat_${selectedMonth}.pdf`);
   } catch (err) {
     console.error(err);
-    alert("Gagal mengekspor PDF");
+    showToast("Gagal Mengekspor PDF", "danger");
   }
 });
 
@@ -576,14 +612,14 @@ async function exportFullBackup(){
     state.history.forEach(h => { if(h.photo) ids.add(h.photo); });
     const idList = Array.from(ids);
     const total = idList.length;
+
     if(total === 0){
       const backupData = { state, photos: {} };
       downloadText(filename, JSON.stringify(backupData));
-      showToast('Managemen Data selesai (tanpa foto)', 'success');
+      showToast('Backup Data Selesai', 'success');
       return;
     }
 
-    showToast(`Mencadangkan foto 0/${total}`, 'info');
     const blobPromises = idList.map(id => getCachedPhoto(id));
     const blobs = await Promise.all(blobPromises);
 
@@ -593,23 +629,26 @@ async function exportFullBackup(){
       reader.onload = e => res(e.target.result);
       reader.readAsDataURL(blob);
     });
-    const dataUrlPromises = blobs.map(b => toDataURL(b));
-    const dataUrls = await Promise.all(dataUrlPromises);
+    const dataUrls = await Promise.all(blobs.map(b => toDataURL(b)));
 
     const photos = {};
     for(let i=0;i<idList.length;i++){
       if(dataUrls[i]) photos[idList[i]] = dataUrls[i];
-      showToast(`Mencadangkan foto ${i+1}/${total}`, 'info');
+      const percent = Math.round(((i+1)/total) * 100);
+      showProgress(`Mencadangkan Foto ${i+1}/${total}`, percent);
       await new Promise(r => setTimeout(r, 0));
     }
 
     const backupData = { state, photos };
     const sizeMB = (new Blob([JSON.stringify(backupData)]).size / (1024*1024)).toFixed(2);
     downloadText(filename, JSON.stringify(backupData));
-    setTimeout(function(){ showToast(`Full backup complete (Size: ${sizeMB} MB)`, 'success'); }, 800);
+
+    hideProgress();
+    showToast(`Backup Data Selesai (Size: ${sizeMB} MB)`, 'success');
   }catch(err){
     console.error('exportFullBackup failed', err);
-    showToast('Managemen Data gagal', 'danger');
+    hideProgress();
+    showToast('Backup Data Gagal', 'danger');
   }
 }
 
@@ -622,12 +661,20 @@ async function importFullBackup(){
     if(!f) return;
     const text = await f.text();
     let parsed;
-    try{ parsed = JSON.parse(text); } catch(err){ alert('Invalid JSON'); return; }
-    if(!parsed.state || !parsed.photos){ alert('Invalid backup file'); return; }
+    try{ parsed = JSON.parse(text); } catch(err){ 
+      showToast('File JSON Tidak Valid!', 'danger'); 
+      return; 
+    }
+    if(!parsed.state || !parsed.photos){ 
+      showToast('File Backup Tidak Valid!', 'danger'); 
+      return; 
+    }
+
     // restore state
     state = parsed.state;
     save();
-    // restore photos to IndexedDB: clear store then put photos
+
+    // restore photos to IndexedDB
     if(!db) await openDB();
     const tx = db.transaction(DB_STORE, 'readwrite');
     tx.objectStore(DB_STORE).clear();
@@ -637,26 +684,29 @@ async function importFullBackup(){
     if(entries.length === 0){
       clearPhotoCache();
       await renderAll();
-      showToast('Managemen Data diimpor (tanpa foto)', 'success');
+      showToast('Backup Data (tanpa foto)', 'success');
       return;
     }
 
-    showToast(`Memulihkan foto 0/${entries.length}`, 'info');
-    const putPromises = entries.map(async ([id, dataUrl], idx) => {
-      // convert dataURL -> blob then put
+    for(let i=0;i<entries.length;i++){
+      const [id, dataUrl] = entries[i];
       const resp = await fetch(dataUrl);
       const blob = await resp.blob();
       await putPhoto(id, blob);
-      // prime local caches
       photoCache.set(id, blob);
       getObjectURLFor(id, blob);
-      showToast(`Memulihkan foto ${idx+1}/${entries.length}`, 'info');
+
+      const percent = Math.round(((i+1)/entries.length) * 100);
+      showProgress(`Memulihkan Foto ${i+1}/${entries.length}`, percent);
+
       await new Promise(r => setTimeout(r, 0));
-    });
-    await Promise.all(putPromises);
-    clearPhotoCache(); // clear object URLs (they were created above to avoid leaks) and prime caches will be re-created on demand
+    }
+
+    clearPhotoCache();
     await renderAll();
-    setTimeout(function(){ showToast('Managemen Data lengkap dipulihkan', 'success'); }, 800);
+
+    hideProgress();
+    showToast('Data Berhasil Dipulihkan', 'success');
   };
   inp.click();
 }
@@ -678,6 +728,7 @@ try{
 }
 
 if (el('manageSearch')) {
+  // keep binding to allow quick filtering
   el('manageSearch').addEventListener('input', () => renderManage());
 }
 if (el('clearManageSearch')) {
@@ -688,7 +739,17 @@ if (el('clearManageSearch')) {
 }
 
 /* Hapus semua with safe cache cleanup */
-if(el('clearAll')) el('clearAll').addEventListener('click', ()=> { if(confirm('Hapus semua data? This cannot be undone.')){ localStorage.removeItem(STORAGE_KEY); state = {items:[], history:[]}; save(); clearPhotoCache(); load(); renderAll(); showToast('Dihapus', 'danger'); } });
+if(el('clearAll')) el('clearAll').addEventListener('click', ()=> {
+showConfirm('Apakah Anda yakin ingin menghapus seluruh data?', () => {
+localStorage.removeItem(STORAGE_KEY);
+state = {items:[], history:[]};
+save();
+clearPhotoCache();
+load();
+renderAll();
+showToast('Seluruh Data Berhasil Dihapus', 'danger');
+});
+});
 
 /* Event delegation for dashboard and manage lists */
 if(el('items')) el('items').addEventListener('click', (e)=>{
@@ -698,46 +759,64 @@ if(el('items')) el('items').addEventListener('click', (e)=>{
   else if(action==='return'){ showView('return'); el('returnSelect').value = id; }
 });
 
+/* Consolidated manageList delegation: delete/edit/save-edit/cancel-edit */
 if(el('manageList')) el('manageList').addEventListener('click', (e)=>{
-  const btn = e.target.closest('button[data-action]'); if(!btn) return;
-  const action = btn.dataset.action; const id = btn.dataset.id;
-  const item = state.items.find(x=>x.id===id);
-  if(!item) return;
-  if(action==='delete'){ if(confirm('Delete this item?')){ state.items = state.items.filter(x=>x.id!==id); save(); renderManage(); renderStats(); renderDashboardList(); showToast('Item deleted','danger'); } }
-  else if(action==='edit'){
-    // render inline edit form inside the card
-    const card = btn.closest('.card'); card.innerHTML = `
-      <div class="form">
-        <input class="input" id="editName" value="${escapeHtml(item.name)}" placeholder="Nama barang" />
-        <input class="input" id="editCategory" value="${escapeHtml(item.category||'')}" placeholder="Category" />
-        <input class="input" id="editDesc" value="${escapeHtml(item.desc||'')}" placeholder="Description" />
-        <select class="select" id="editStatus" disabled>
-          <option value="available" ${item.status==='available'?'selected':''}>Tersedia</option>
-          <option value="borrowed" ${item.status==='borrowed'?'selected':''}>Dipinjam</option>
-        </select>
-        <div class="actions">
-          <button class="btn primary" data-action="save-edit" data-id="${id}">Simpan</button>
-          <button class="btn ghost" data-action="cancel-edit" data-id="${id}">Batal</button>
-        </div>
-      </div>
-    `;
-  } else if(action==='save-edit' || action==='cancel-edit'){
-    // handled by delegation below in same listener
-  }
-});
+const btn = e.target.closest('button[data-action]'); if(!btn) return;
+const action = btn.dataset.action; const id = btn.dataset.id;
+const item = state.items.find(x=>x.id===id);
+if(!item && action !== 'cancel-edit') return;
 
-/* Handle save/cancel for inline edit via delegation (listen on manageList) */
-if(el('manageList')) el('manageList').addEventListener('click', (e)=>{
-  const btn = e.target.closest('button[data-action]'); if(!btn) return;
-  const action = btn.dataset.action; const id = btn.dataset.id;
-  if(action==='save-edit'){
-    const card = btn.closest('.card'); const newName = card.querySelector('#editName').value.trim(); if(!newName) return alert('Nama wajib diisi');
-    const it = state.items.find(x=>x.id===id); if(!it) return;
-    it.name = newName; it.category = card.querySelector('#editCategory').value.trim(); it.desc = card.querySelector('#editDesc').value.trim();
-    save(); renderManage(); renderStats(); renderDashboardList(); showToast('Item updated','success');
-  } else if(action==='cancel-edit'){
-    renderManage();
-  }
+
+if(action==='delete'){
+showConfirm('Apakah Anda yakin ingin menghapus barang ini?', () => {
+state.items = state.items.filter(x=>x.id!==id);
+save();
+renderManage();
+renderStats();
+renderDashboardList();
+showToast('Barang dihapus','danger');
+});
+return;
+}
+
+
+if(action==='edit'){
+// render inline edit form inside the card
+const card = btn.closest('.card');
+card.innerHTML = `
+<div class="form">
+<input class="input" id="editName" value="${escapeHtml(item.name)}" placeholder="Nama barang" />
+<input class="input" id="editCategory" value="${escapeHtml(item.category||'')}" placeholder="Kategori" />
+<input class="input" id="editDesc" value="${escapeHtml(item.desc||'')}" placeholder="Deskripsi" />
+<select class="select" id="editStatus" disabled>
+<option value="available" ${item.status==='available'?'selected':''}>Tersedia</option>
+<option value="borrowed" ${item.status==='borrowed'?'selected':''}>Dipinjam</option>
+</select>
+<div class="actions">
+<button class="btn primary" data-action="save-edit" data-id="${id}">Simpan</button>
+<button class="btn ghost" data-action="cancel-edit" data-id="${id}">Batal</button>
+</div>
+</div>
+`;
+return;
+}
+
+
+if(action==='save-edit'){
+const card = btn.closest('.card');
+const newName = card.querySelector('#editName').value.trim();
+if(!newName) return showToast('Nama wajib diisi', 'warning');
+const it = state.items.find(x=>x.id===id); if(!it) return;
+it.name = newName; it.category = card.querySelector('#editCategory').value.trim(); it.desc = card.querySelector('#editDesc').value.trim();
+save(); renderManage(); renderStats(); renderDashboardList(); showToast('Barang diperbarui','success');
+return;
+}
+
+
+if(action==='cancel-edit'){
+renderManage();
+return;
+}
 });
 
 /* small helpers */
@@ -774,46 +853,34 @@ showView('dashboard');
 const thisMonth = new Date().toISOString().slice(0, 7);
 if (el('historyMonth')) el('historyMonth').value = thisMonth;
 
-
-const today = new Date().toISOString().split('T')[0];
-if(el('borrowDate')) el('borrowDate').value = today;
-if(el('expectedReturn')) {
-el('expectedReturn').value = today;
-el('expectedReturn').setAttribute('min', today); // dynamically set min date
+// centralize expectedReturn min logic
+function setExpectedReturnMin() {
+  const today = new Date().toISOString().split('T')[0];
+  if (el('borrowDate')) el('borrowDate').value = today;
+  if (el('expectedReturn')) {
+    el('expectedReturn').value = el('expectedReturn').value || today;
+    el('expectedReturn').min = today;
+    // keep a manual-change flag when user edits it
+    el('expectedReturn').addEventListener('change', () => { el('expectedReturn').dataset.manualChange = '1'; });
+  }
+  if (el('returnDate')) el('returnDate').value = today;
 }
-if(el('returnDate')) el('returnDate').value = today;
-
+setExpectedReturnMin();
 
 if(el('borrowDate')) el('borrowDate').addEventListener('change', e => {
-if (!el('expectedReturn').dataset.manualChange) {
-el('expectedReturn').value = e.target.value;
-el('expectedReturn').setAttribute('min', e.target.value);
-}
+  const ex = el('expectedReturn');
+  if (ex && !ex.dataset.manualChange) {
+    ex.value = e.target.value;
+    ex.min = e.target.value;
+  }
 });
-if(el('expectedReturn')) el('expectedReturn').addEventListener('change', () => {
-el('expectedReturn').dataset.manualChange = true;
-});
-
-/* Full text import/export wires kept above */
-
-/* make sure manage filter buttons are bound once */
-if(!document.body.dataset.manageBound){
-  document.querySelectorAll('#manage [data-filter]').forEach(btn => {
-    btn.addEventListener('click', ()=> { 
-      manageFilter = btn.dataset.filter; 
-      renderManage(); 
-    });
-  });
-  if(el('manageSearch')) el('manageSearch').addEventListener('input', ()=> renderManage());
-  document.body.dataset.manageBound = '1';
-}
-
 
 // Enhance preview after processPhotoInput by adding remove button
 function enhancePhotoPreview(containerId, inputId, previewId) {
     const container = document.getElementById(containerId);
     const inputEl = document.getElementById(inputId);
     const previewEl = document.getElementById(previewId);
+    if(!container || !inputEl || !previewEl) return;
 
     const observer = new MutationObserver(() => {
         if (previewEl.querySelector('img')) {
@@ -827,7 +894,6 @@ function enhancePhotoPreview(containerId, inputId, previewId) {
                     ev.preventDefault();
                     ev.stopPropagation();
                     inputEl.value = '';
-    inputEl.dataset.photoId = ''; // clear stored photo reference
                     inputEl.dataset.photoId = ''; // clear stored photo reference
                     previewEl.innerHTML = '';
                     container.classList.remove('has-image');
@@ -848,76 +914,81 @@ function resetPhotoFrame(containerId, inputId, previewId) {
     const container = document.getElementById(containerId);
     const inputEl = document.getElementById(inputId);
     const previewEl = document.getElementById(previewId);
-    inputEl.value = '';
-    previewEl.innerHTML = '';
-    container.classList.remove('has-image');
-    const btn = container.querySelector('.btn-remove-photo');
+    if(inputEl) inputEl.value = '';
+    if(previewEl) previewEl.innerHTML = '';
+    if(container) container.classList.remove('has-image');
+    const btn = container ? container.querySelector('.btn-remove-photo') : null;
     if (btn) btn.remove();
 }
 
+// wire up enhancements
 document.addEventListener('DOMContentLoaded', () => {
     enhancePhotoPreview('borrowPhotoContainer', 'borrowPhoto', 'borrowPreview');
     enhancePhotoPreview('returnPhotoContainer', 'returnPhoto', 'returnPreview');
+    hideProgress();
 });
 
+// Restrict Perkiraan pengembalian Date to today or later (already handled in setExpectedReturnMin)
 
-// Reset Borrow/Return forms (except date fields)
-function resetFormExceptDates(formId, containerId, inputId, previewId) {
-    const form = document.getElementById(formId);
-    if (form) {
-        Array.from(form.elements).forEach(el => {
-            if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') {
-                if (el.type !== 'date') {
-                    if (el.type === 'checkbox' || el.type === 'radio') {
-                        el.checked = false;
-                    } else if (el.type !== 'file') {
-                        el.value = '';
-                    }
-                }
-            }
-        });
-    }
-    if (typeof resetPhotoFrame === 'function') {
-        resetPhotoFrame(containerId, inputId, previewId);
-    }
+function showProgress(message, percent) {
+  const overlay = el('progressOverlay');
+  const bar = el('progressBar');
+  const text = el('progressText');
+  if (overlay && bar && text) {
+    overlay.style.display = 'flex';
+    text.textContent = message;
+    bar.style.width = percent + '%';
+  }
 }
 
-// Enhance showTab to reset when switching away from Borrow/Return
-const originalShowTab = showTab;
-showTab = function(tabName) {
-    const activeTab = document.querySelector('.tab-content.active');
-    if (activeTab && activeTab.id === 'borrowTab' && tabName !== 'borrowTab') {
-        resetFormExceptDates('borrowForm', 'borrowPhotoContainer', 'borrowPhoto', 'borrowPreview');
-    }
-    if (activeTab && activeTab.id === 'returnTab' && tabName !== 'returnTab') {
-        resetFormExceptDates('returnForm', 'returnPhotoContainer', 'returnPhoto', 'returnPreview');
-    }
-    originalShowTab(tabName);
+function hideProgress() {
+  const overlay = el('progressOverlay');
+  if (overlay) overlay.style.display = 'none';
 }
 
-
-// Restrict Perkiraan pengembalian Date to today or later
-document.addEventListener('DOMContentLoaded', () => {
-    const expectedReturnInput = document.getElementById('expectedReturn');
-    if (expectedReturnInput) {
-        const setMinToday = () => {
-            const today = new Date().toISOString().split('T')[0];
-            expectedReturnInput.min = today;
-            if (expectedReturnInput.value && expectedReturnInput.value < today) {
-                expectedReturnInput.value = today;
-            }
-        };
-        setMinToday();
-        expectedReturnInput.addEventListener('input', setMinToday);
-    }
-});
+// expose some helpers for debugging in console if needed
+window.simisaHelpers = { clearPhotoCache, getCachedPhoto };
 
 
+/* Confirmation Modal */
+function showConfirm(message, onConfirm) {
+const overlay = document.createElement('div');
+overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:10000;';
 
-document.addEventListener('DOMContentLoaded', () => {
-    const expectedReturnInput = document.getElementById('expectedReturn');
-    if (expectedReturnInput) {
-        const today = new Date().toISOString().split('T')[0];
-        expectedReturnInput.min = today;
-    }
-});
+
+const box = document.createElement('div');
+box.style.cssText = 'background:#fff;padding:20px;border-radius:12px;max-width:320px;width:90%;text-align:center;box-shadow:0 6px 18px rgba(0,0,0,0.3);';
+
+
+const msg = document.createElement('div');
+msg.textContent = message;
+msg.style.marginBottom = '16px';
+
+
+const actions = document.createElement('div');
+actions.style.display = 'flex';
+actions.style.justifyContent = 'space-around';
+
+
+const yesBtn = document.createElement('button');
+yesBtn.className = 'btn danger';
+yesBtn.textContent = 'Ya';
+yesBtn.onclick = () => {
+overlay.remove();
+if (typeof onConfirm === 'function') onConfirm();
+};
+
+
+const noBtn = document.createElement('button');
+noBtn.className = 'btn ghost';
+noBtn.textContent = 'Batal';
+noBtn.onclick = () => overlay.remove();
+
+
+actions.appendChild(yesBtn);
+actions.appendChild(noBtn);
+box.appendChild(msg);
+box.appendChild(actions);
+overlay.appendChild(box);
+document.body.appendChild(overlay);
+}

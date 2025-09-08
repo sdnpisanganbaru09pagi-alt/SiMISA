@@ -1,25 +1,24 @@
 {
-  "name": "SiMISA",
+  "name": "SiMISA - Aplikasi Peminjaman Aset Sekolah",
   "short_name": "SiMISA",
-  "description": "Aplikasi Peminjaman Aset Sekolah",
+  "description": "Aplikasi untuk mengelola pencatatan peminjaman aset sekolah",
   "start_url": "./index.html",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#ffffff",
-  "theme_color": "#ffffff",
+  "theme_color": "#6c5ce7",
   "icons": [
     {
       "src": "icons/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
-  ],
-  "orientation": "portrait",
-  "id": "index.html",
-  "dir": "auto",
-  "scope": "./index.html"
+  ]
 }
