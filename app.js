@@ -999,9 +999,8 @@ window.addEventListener("beforeinstallprompt", (e) => {
   e.preventDefault();
   deferredPrompt = e;
 
-  // Show your own install button
   const installBtn = document.createElement("button");
-  installBtn.textContent = "📲 Install Aplikasi";
+  installBtn.textContent = "📲 Pasang SiMISA";
   installBtn.className = "btn primary";
   installBtn.style.position = "fixed";
   installBtn.style.bottom = "20px";
@@ -1017,6 +1016,7 @@ window.addEventListener("beforeinstallprompt", (e) => {
     deferredPrompt = null;
   });
 });
+
 
 
 
