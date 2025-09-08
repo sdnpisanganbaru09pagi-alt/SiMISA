@@ -51,7 +51,7 @@ self.addEventListener("fetch", event => {
         .catch(() => {
           // fallback to cached index.html for navigation requests
           if (event.request.mode === "navigate") {
-            return caches.match("./index.html");
+            return caches.match("/index.html");
           }
         });
     })
