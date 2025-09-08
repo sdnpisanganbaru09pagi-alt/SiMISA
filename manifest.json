@@ -3,6 +3,7 @@
   "short_name": "SiMISA",
   "description": "Aplikasi untuk mengelola pencatatan peminjaman aset sekolah",
   "start_url": "/index.html",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#ffffff",
