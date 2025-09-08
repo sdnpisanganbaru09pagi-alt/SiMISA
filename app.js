@@ -11,6 +11,23 @@ if ("serviceWorker" in navigator) {
  
 */
 
+// Use local date in YYYY-MM-DD (avoid UTC offset issues)
+function localISODate() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+// Local year-month (YYYY-MM)
+function localYearMonth() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${yyyy}-${mm}`;
+}
+
 const DB_NAME = 'simisa_photos';
 const DB_STORE = 'photos';
 let db;
@@ -126,7 +143,7 @@ function showView(id) {
     t.classList.toggle('active', t.dataset.tab === id)
   );
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = localISODate();
   if (id === 'borrow') {
     if (el('borrowDate')) {
       el('borrowDate').value = today;
@@ -281,10 +298,12 @@ async function renderHistoryList(){
   let historyData = state.history.slice().reverse();
   if (selectedMonth) {
     historyData = historyData.filter(h => {
-      const date = new Date(h.date);
-      const monthStr = date.toISOString().slice(0, 7);
-      return monthStr === selectedMonth;
-    });
+  const d = new Date(h.date);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const monthStr = `${yyyy}-${mm}`;
+  return monthStr === selectedMonth;
+});
   }
   if(historyData.length===0){ historyWrap.innerHTML = '<div class="card"><div class="meta">Tidak ada riwayat untuk bulan ini.</div></div>'; return; }
 
@@ -411,7 +430,7 @@ e.preventDefault();
 try{
 const id = el('borrowSelect').value; if(!id) return showToast('Pilih barang', 'warning');
 const borrower = el('borrower').value.trim(); if(!borrower) { showToast('Masukkan nama peminjam', 'warning'); return; }
-const bDate = new Date().toISOString().split('T')[0];
+const bDate = localISODate();
 const exp = el('expectedReturn').value || '';
 const photoInput = el('borrowPhoto');
 photoInput.setAttribute('required', 'true'); // 🔒 enforce via HTML5
@@ -439,7 +458,7 @@ if(el('returnForm')) el('returnForm').addEventListener('submit', async e=> {
 e.preventDefault();
 try{
 const id = el('returnSelect').value; if(!id) return showToast('Pilih barang', 'warning');
-const rDate = new Date().toISOString().split('T')[0];
+const rDate = localISODate();
 const photoInput = el('returnPhoto');
 photoInput.setAttribute('required', 'true'); // 🔒 enforce via HTML5
 const photoId = photoInput.dataset.photoId || null;
@@ -528,8 +547,11 @@ if (el('exportMonthPdf')) el('exportMonthPdf').addEventListener('click', () => {
     const titleText = `Riwayat Peminjaman Barang — ${monthName} ${year}`;
 
     const monthData = state.history.filter(h => {
-      const date = new Date(h.date);
-      return date.toISOString().slice(0, 7) === selectedMonth;
+    const d = new Date(h.date);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const monthStr = `${yyyy}-${mm}`;
+    return monthStr === selectedMonth;
     }).sort((a, b) => new Date(a.date) - new Date(b.date));
 
     if (monthData.length === 0) return showToast("Tidak ada data untuk bulan ini.", "info");
@@ -844,12 +866,12 @@ renderAll();
 showView('dashboard');
 
 /* Set default month & dates */
-const thisMonth = new Date().toISOString().slice(0, 7);
+const thisMonth = localYearMonth();
 if (el('historyMonth')) el('historyMonth').value = thisMonth;
 
 // centralize expectedReturn min logic
 function setExpectedReturnMin() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = localISODate();
   if (el('borrowDate')) el('borrowDate').value = today;
   if (el('expectedReturn')) {
     el('expectedReturn').value = el('expectedReturn').value || today;
