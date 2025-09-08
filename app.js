@@ -992,3 +992,10 @@ box.appendChild(actions);
 overlay.appendChild(box);
 document.body.appendChild(overlay);
 }
+
+/* Tombol tandai dikembalikan di dashboard */
+if (it.status === 'borrowed') {
+  html += `<button class="btn borrowed-return" data-action="return" data-id="${it.id}">Kembalikan</button>`;
+}
+
+
