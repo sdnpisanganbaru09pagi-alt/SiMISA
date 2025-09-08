@@ -999,6 +999,7 @@ window.addEventListener("beforeinstallprompt", (e) => {
   e.preventDefault();
   deferredPrompt = e;
 
+  // Create install button
   const installBtn = document.createElement("button");
   installBtn.textContent = "📲 Pasang SiMISA";
   installBtn.className = "btn primary";
@@ -1008,14 +1009,28 @@ window.addEventListener("beforeinstallprompt", (e) => {
   installBtn.style.zIndex = "9999";
   document.body.appendChild(installBtn);
 
+  // Handle click
   installBtn.addEventListener("click", async () => {
     installBtn.remove();
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    console.log(`User response: ${outcome}`);
+    console.log(`User response to install: ${outcome}`);
     deferredPrompt = null;
+
+    if (outcome === "accepted") {
+      showToast("Aplikasi dipasang ✔️", "success");
+    } else {
+      showToast("Pemasangan dibatalkan ❌", "warning");
+    }
   });
 });
+
+// Optional: detect if already installed
+window.addEventListener("appinstalled", () => {
+  console.log("PWA installed");
+  showToast("Aplikasi berhasil dipasang 🎉", "success");
+});
+
 
 
 
