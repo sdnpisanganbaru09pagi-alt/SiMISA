@@ -8,39 +8,8 @@ if ("serviceWorker" in navigator) {
 ;
 /*
   Patched & cleaned version of app.js
-  - Replaced alert() usage with showToast()
-  - Translated remaining English UI strings to Indonesian
-  - Removed duplicate/unused code (duplicate expectedReturn min setters, duplicate listeners)
-  - Fixed photo preview HTML bug
-  - Consolidated manageList event delegation into a single handler
-  - Removed small duplicate assignments
-  - Kept functionality unchanged where possible
+ 
 */
-
-let deferredPrompt;
-
-window.addEventListener("beforeinstallprompt", (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
-
-  // Show your own install button
-  const installBtn = document.createElement("button");
-  installBtn.textContent = "📲 Install Aplikasi";
-  installBtn.className = "btn primary";
-  installBtn.style.position = "fixed";
-  installBtn.style.bottom = "20px";
-  installBtn.style.right = "20px";
-  installBtn.style.zIndex = "9999";
-  document.body.appendChild(installBtn);
-
-  installBtn.addEventListener("click", async () => {
-    installBtn.remove();
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    console.log(`User response: ${outcome}`);
-    deferredPrompt = null;
-  });
-});
 
 const DB_NAME = 'simisa_photos';
 const DB_STORE = 'photos';
@@ -1022,5 +991,57 @@ document.body.appendChild(overlay);
 if (it.status === 'borrowed') {
   html += `<button class="btn borrowed-return" data-action="return" data-id="${it.id}">Kembalikan</button>`;
 }
+
+/* --- PWA Install Prompt --- */
+let deferredPrompt;
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+
+  // Show your own install button
+  const installBtn = document.createElement("button");
+  installBtn.textContent = "📲 Install Aplikasi";
+  installBtn.className = "btn primary";
+  installBtn.style.position = "fixed";
+  installBtn.style.bottom = "20px";
+  installBtn.style.right = "20px";
+  installBtn.style.zIndex = "9999";
+  document.body.appendChild(installBtn);
+
+  installBtn.addEventListener("click", async () => {
+    installBtn.remove();
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`User response: ${outcome}`);
+    deferredPrompt = null;
+  });
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
