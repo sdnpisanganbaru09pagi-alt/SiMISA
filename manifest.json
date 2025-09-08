@@ -8,6 +8,10 @@
   "background_color": "#ffffff",
   "theme_color": "#6c5ce7",
   
+    "permissions": [
+  "camera",
+  "storage"
+]
   "icons": [
     {
       "src": "icons/icon-192.png",
@@ -23,9 +27,4 @@
     }
   ]
   
-  "permissions": [
-  "camera",
-  "storage"
-]
-
 }
