@@ -514,10 +514,10 @@ function injectSignatureUI(formId, canvasId, clearBtnId) {
   wrapper.innerHTML = `
     <label style="display:block;margin-bottom:6px;font-weight:600;">Tanda Tangan (wajib):</label>
     <div style="display:flex;gap:8px;align-items:center;">
-      <canvas id="${canvasId}" width="200" height="100" style="border:1px solid #ddd;border-radius:6px;background:white;"></canvas>
+      <canvas id="${canvasId}" width="200" height="120" style="border:1px solid #ddd;border-radius:6px;background:white;"></canvas>
       <div style="display:flex;flex-direction:column;gap:6px;">
         <button type="button" id="${clearBtnId}" class="btn ghost" style="height:36px;padding:6px 10px;">Hapus Tanda Tangan</button>
-        <div style="font-size:12px;color:#666;max-width:140px">Gunakan jari atau stylus untuk menandatangani. Tanda tangan wajib sebelum submit.</div>
+        <div style="font-size:11px;color:#666;max-width:140px">Gunakan jari atau stylus untuk menandatangani. Tanda tangan wajib sebelum submit.</div>
       </div>
     </div>
   `;
