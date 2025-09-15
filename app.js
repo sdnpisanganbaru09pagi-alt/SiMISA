@@ -1,6 +1,6 @@
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/service-worker.js")
+    navigator.serviceWorker.register("./service-worker.js")
       .then(reg => console.log("SW registered:", reg))
       .catch(err => console.error("SW registration failed:", err));
   });
@@ -8,25 +8,14 @@ if ("serviceWorker" in navigator) {
 ;
 /*
   Patched & cleaned version of app.js
- 
+  - Replaced alert() usage with showToast()
+  - Translated remaining English UI strings to Indonesian
+  - Removed duplicate/unused code (duplicate expectedReturn min setters, duplicate listeners)
+  - Fixed photo preview HTML bug
+  - Consolidated manageList event delegation into a single handler
+  - Removed small duplicate assignments
+  - Kept functionality unchanged where possible
 */
-
-// Use local date in YYYY-MM-DD (avoid UTC offset issues)
-function localISODate() {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-// Local year-month (YYYY-MM)
-function localYearMonth() {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  return `${yyyy}-${mm}`;
-}
 
 const DB_NAME = 'simisa_photos';
 const DB_STORE = 'photos';
@@ -143,7 +132,7 @@ function showView(id) {
     t.classList.toggle('active', t.dataset.tab === id)
   );
 
-  const today = localISODate();
+  const today = new Date().toISOString().split('T')[0];
   if (id === 'borrow') {
     if (el('borrowDate')) {
       el('borrowDate').value = today;
@@ -260,7 +249,8 @@ async function renderDashboardList(){
     const p = document.createElement('div'); p.className='meta'; p.textContent = it.desc || ''; card.appendChild(p);
 
     if(it.status==='borrowed'){
-      const by = document.createElement('div'); by.className='meta'; by.textContent = `Dipinjam oleh: ${it.borrowedBy} • ${formatDate(it.borrowDate)} ${it.expectedReturn? '• perkiraan: ' + formatDate(it.expectedReturn):''}`;
+      const by = document.createElement('div'); by.className='meta'; const timeTxt = it.borrowTime ? ` • ${it.borrowTime}` : '';
+      by.textContent = `Dipinjam oleh: ${it.borrowedBy} • ${formatDate(it.borrowDate)}${timeTxt}${it.expectedReturn? ' • perkiraan: ' + formatDate(it.expectedReturn):''}`;
       card.appendChild(by);
     }
 
@@ -298,32 +288,70 @@ async function renderHistoryList(){
   let historyData = state.history.slice().reverse();
   if (selectedMonth) {
     historyData = historyData.filter(h => {
-  const d = new Date(h.date);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const monthStr = `${yyyy}-${mm}`;
-  return monthStr === selectedMonth;
-});
+      const date = new Date(h.date);
+      const monthStr = date.toISOString().slice(0, 7);
+      return monthStr === selectedMonth;
+    });
   }
   if(historyData.length===0){ historyWrap.innerHTML = '<div class="card"><div class="meta">Tidak ada riwayat untuk bulan ini.</div></div>'; return; }
 
-  const photoIds = historyData.map(h => h.photo || null);
+  // collect both photos and signatures
+  const photoIds = [];
+  historyData.forEach(h => {
+    if(h.photo) photoIds.push(h.photo);
+    if(h.signPhoto) photoIds.push(h.signPhoto);
+  });
+
   const blobs = await fetchBlobsInBatches(photoIds, 10);
 
+  // map id -> blob
+  const blobMap = {};
+  for(let i=0;i<photoIds.length;i++){
+    blobMap[photoIds[i]] = blobs[i];
+  }
+
   const renderFn = (h, idx) => {
-    const blob = blobs[idx];
     const c = document.createElement('div'); c.className='card';
-    const t = document.createElement('div'); t.className='meta'; t.textContent = `${h.action.toUpperCase()} • ${h.itemName} • ${h.by || h.borrower || ''} • ${formatDate(h.date)}`;
+    const t = document.createElement('div'); t.className='meta'; const timeTxt = h.time ? ` • ${h.time}` : '';
+    t.textContent = `${h.action.toUpperCase()} • ${h.itemName} • ${h.by || h.borrower || ''} • ${formatDate(h.date)}${timeTxt}`;
     c.appendChild(t);
-    if(blob){
+
+    if(h.photo && blobMap[h.photo]){
       const pv = document.createElement('div'); pv.className='preview';
       const im = document.createElement('img'); im.loading='lazy';
-      const url = getObjectURLFor(h.photo, blob);
+      const url = getObjectURLFor(h.photo, blobMap[h.photo]);
       im.src = url || '';
       im.alt='photo'; im.style.maxHeight='180px'; im.style.objectFit='cover';
       im.addEventListener('click', ()=> openImageModal(url));
       pv.appendChild(im); c.appendChild(pv);
     }
+
+    // signature below photo
+    if(h.signPhoto && blobMap[h.signPhoto]){
+      const sigWrap = document.createElement('div');
+      sigWrap.className = 'meta';
+      sigWrap.style.marginTop = '8px';
+      sigWrap.style.display = 'flex';
+      sigWrap.style.flexDirection = 'column';
+      sigWrap.style.gap = '6px';
+
+      const lbl = document.createElement('div');
+      lbl.textContent = 'Tanda Tangan:';
+      lbl.style.fontSize = '12px';
+      lbl.style.color = '#444';
+      sigWrap.appendChild(lbl);
+
+      const sigImg = document.createElement('img'); sigImg.loading='lazy';
+      sigImg.src = getObjectURLFor(h.signPhoto, blobMap[h.signPhoto]) || '';
+      sigImg.alt = 'signature';
+      sigImg.style.maxHeight = '80px';
+      sigImg.style.objectFit = 'contain';
+      sigImg.style.border = '1px solid #eee';
+      sigImg.style.borderRadius = '6px';
+      sigWrap.appendChild(sigImg);
+      c.appendChild(sigWrap);
+    }
+
     return c;
   };
 
@@ -383,29 +411,136 @@ function renderManage(highlightId=null){
 /* Photo processing (fixed preview bug) */
 function resizeImage(file, maxW, maxH){ return new Promise((resolve)=>{ const img = new Image(); const reader = new FileReader(); reader.onload = e=>{ img.onload = ()=>{ const canvas = document.createElement('canvas'); let { width, height } = img; if (width > maxW || height > maxH){ const scale = Math.min(maxW / width, maxH / height); width *= scale; height *= scale; } canvas.width = width; canvas.height = height; canvas.getContext('2d').drawImage(img, 0, 0, width, height); let quality = 0.8; if (file.size > 2 * 1024 * 1024) quality = 0.6; else if (file.size > 1 * 1024 * 1024) quality = 0.7; resolve(canvas.toDataURL('image/webp', quality)); }; img.onerror = ()=> resolve(null); img.src = e.target.result; }; reader.onerror = ()=> resolve(null); reader.readAsDataURL(file); }); }
 
+// helper: convert dataURL to Blob
+function dataURLtoBlob(dataurl) {
+  try{
+    const arr = dataurl.split(',');
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/webp';
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while(n--) u8arr[n] = bstr.charCodeAt(n);
+    return new Blob([u8arr], { type: mime });
+  }catch(e){
+    console.error('dataURLtoBlob failed', e);
+    return null;
+  }
+}
+
 async function processPhotoInput(file, previewEl) {
   try{
     if (!file) return null;
-    if (file.size > 5 * 1024 * 1024) { showToast('Maks 5MB','warning'); return null; }
+    if (file.size > 10 * 1024 * 1024) { showToast('Maks 10MB','warning'); return null; }
     const resizedData = await resizeImage(file, 1024, 1024);
     if(!resizedData) return null;
-    const blob = await (await fetch(resizedData)).blob();
+    const blob = dataURLtoBlob(resizedData);
     const photoId = 'photo_' + uid();
     await putPhoto(photoId, blob);
-    // Use object URL for preview and cache both blob & url
     photoCache.set(photoId, blob);
     const url = getObjectURLFor(photoId, blob);
-    // fixed: removed broken assignment and set proper img markup
     previewEl.innerHTML = `<img src="${url}" alt="preview">`;
     if (typeof showToast === 'function') { showToast('Foto Ditambahkan', 'success'); }
     previewEl.hidden = false;
     _ensureCacheLimit();
     return photoId;
-  }catch(err){
+  }
+  catch(err){
     console.error('processPhotoInput failed', err);
     return null;
   }
 }
+
+/* -------------------- Signature pad for borrow & return (auto-injected) -------------------- */
+
+// helper: create signature UI and pad
+function makeSignaturePad(canvasId, clearBtnId) {
+  const canvas = document.getElementById(canvasId);
+  if(!canvas) return null;
+  const ctx = canvas.getContext('2d');
+  // lightweight styling for drawing
+  ctx.lineWidth = 2.2;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#111';
+
+  let drawing = false;
+  let lastPos = null;
+
+  function getPosFromMouse(e){
+    const r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+  function getPosFromTouch(t){
+    const r = canvas.getBoundingClientRect();
+    return { x: t.clientX - r.left, y: t.clientY - r.top };
+  }
+
+  canvas.addEventListener('mousedown', e => { drawing = true; lastPos = getPosFromMouse(e); ctx.beginPath(); ctx.moveTo(lastPos.x, lastPos.y); });
+  canvas.addEventListener('mousemove', e => { if(!drawing) return; const p = getPosFromMouse(e); ctx.lineTo(p.x, p.y); ctx.stroke(); });
+  canvas.addEventListener('mouseup', () => { drawing = false; lastPos = null; });
+  canvas.addEventListener('mouseleave', () => { drawing = false; lastPos = null; });
+
+  // touch
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing = true; const p = getPosFromTouch(e.touches[0]); ctx.beginPath(); ctx.moveTo(p.x, p.y); });
+  canvas.addEventListener('touchmove', e => { e.preventDefault(); if(!drawing) return; const p = getPosFromTouch(e.touches[0]); ctx.lineTo(p.x, p.y); ctx.stroke(); });
+  canvas.addEventListener('touchend', e => { e.preventDefault(); drawing = false; lastPos = null; });
+
+  const clearBtn = document.getElementById(clearBtnId);
+  if(clearBtn) clearBtn.addEventListener('click', () => { ctx.clearRect(0,0,canvas.width,canvas.height); });
+
+  function getDataUrl(){
+    // check whether canvas is empty by comparing to a blank canvas
+    try {
+      const blank = document.createElement('canvas');
+      blank.width = canvas.width; blank.height = canvas.height;
+      const blankData = blank.toDataURL();
+      const cur = canvas.toDataURL();
+      return cur === blankData ? '' : cur;
+    } catch (e) { return canvas.toDataURL(); }
+  }
+
+  return { getDataUrl, clear: () => ctx.clearRect(0,0,canvas.width,canvas.height) };
+}
+
+// inject signature UI into a form before its submit button
+function injectSignatureUI(formId, canvasId, clearBtnId) {
+  const form = document.getElementById(formId);
+  if(!form) return;
+  // do not inject twice
+  if (form.querySelector('#' + canvasId)) return;
+  const wrapper = document.createElement('div');
+  wrapper.className = 'sig-wrap';
+  wrapper.style.margin = '8px 0';
+  wrapper.innerHTML = `
+    <label style="display:block;margin-bottom:6px;font-weight:600;">Tanda Tangan (wajib):</label>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <canvas id="${canvasId}" width="300" height="100" style="border:1px solid #ddd;border-radius:6px;background:white;"></canvas>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <button type="button" id="${clearBtnId}" class="btn ghost" style="height:36px;padding:6px 10px;">Hapus Tanda Tangan</button>
+        <div style="font-size:12px;color:#666;max-width:140px">Gunakan jari atau stylus untuk menandatangani. Tanda tangan wajib sebelum submit.</div>
+      </div>
+    </div>
+  `;
+  // insert wrapper before the last button[type=submit] in the form
+  const submitBtn = form.querySelector('button[type="submit"]');
+  if(submitBtn) form.insertBefore(wrapper, submitBtn);
+  else form.appendChild(wrapper);
+}
+
+// create pads and wire into DOMContentLoaded
+document.addEventListener('DOMContentLoaded', () => {
+  try {setTimeout(()=>{
+    injectSignatureUI('borrowForm', 'borrowSign', 'clearBorrowSign');
+    injectSignatureUI('returnForm', 'returnSign', 'clearReturnSign');
+    // make pads available globally for handlers
+    window.__borrowSignPad = document.getElementById('borrowSign') ? makeSignaturePad('borrowSign', 'clearBorrowSign') : null;
+    window.__returnSignPad = document.getElementById('returnSign') ? makeSignaturePad('returnSign', 'clearReturnSign') : null;
+  },500);} catch (e) {
+    console.error('Signature UI injection failed', e);
+  }
+});
+
+/* -------------------- end signature helpers -------------------- */
 
 /* --- Event wiring (one-time) --- */
 document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', e=> { showView(t.dataset.tab); }));
@@ -426,75 +561,99 @@ if(el('addForm')) el('addForm').addEventListener('submit', e=> { e.preventDefaul
 
 /* Borrow/Return forms */
 if(el('borrowForm')) el('borrowForm').addEventListener('submit', async e=> {
-e.preventDefault();
-try{
-const id = el('borrowSelect').value; if(!id) return showToast('Pilih barang', 'warning');
-const borrower = el('borrower').value.trim(); if(!borrower) { showToast('Masukkan nama peminjam', 'warning'); return; }
-const bDate = localISODate();
-const exp = el('expectedReturn').value || '';
-const photoInput = el('borrowPhoto');
-photoInput.setAttribute('required', 'true'); // 🔒 enforce via HTML5
-const photoId = photoInput.dataset.photoId || null;
-if (!photoId) { showToast('Harap ambil foto saat meminjam', 'warning'); return; }
-const item = state.items.find(x=>x.id===id);
-if (!item) return showToast('Barang tidak ditemukan', 'danger');
-item.status = 'borrowed'; item.borrowedBy = borrower; item.borrowDate = bDate; item.expectedReturn = exp; item.photo = photoId;
-state.history.push({ action: 'borrowed', itemId: id, itemName: item.name, borrower, date: bDate, expectedReturn: exp || '', photo: photoId });
-save();
-el('borrowForm').reset(); el('borrowPreview').hidden = true;
-resetPhotoFrame('borrowPhotoContainer','borrowPhoto','borrowPreview');
-populateSelects();
-renderStats(); await renderDashboardList(); renderHistoryList();
-showView('dashboard');
-showToast('Peminjaman tercatat');
-}catch(err){
-console.error(err);
-showToast('Gagal mencatat peminjaman','danger');
-}
-});
+  e.preventDefault();
+  try{
+    const id = el('borrowSelect').value; if(!id) return showToast('Pilih barang', 'warning');
+    const borrower = el('borrower').value.trim(); if(!borrower) { showToast('Masukkan nama peminjam', 'warning'); return; }
+    const now = new Date();
+    const bDate = now.toISOString().split('T')[0];
+    const bTime = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const exp = el('expectedReturn').value || '';
+    const photoInput = el('borrowPhoto');
+    photoInput.setAttribute('required', 'true');
+    const photoId = photoInput.dataset.photoId || null;
+    if (!photoId) { showToast('Harap ambil foto saat meminjam', 'warning'); return; }
 
+    // signature (wajib)
+    const signPad = window.__borrowSignPad;
+    const signData = signPad ? signPad.getDataUrl() : '';
+    if(!signData || signData.length < 40){ showToast('Harap isi tanda tangan saat meminjam', 'warning'); return; }
+    let signId = null;
+    try{
+      const signBlob = dataURLtoBlob(signData);
+      if(signBlob){ signId = 'sign_' + uid(); await putPhoto(signId, signBlob); photoCache.set(signId, signBlob); }
+    }catch(err){ console.error('saving sign failed', err); }
+
+    const item = state.items.find(x=>x.id===id);
+    if (!item) return showToast('Barang tidak ditemukan', 'danger');
+    item.status = 'borrowed';
+    item.borrowedBy = borrower;
+    item.borrowDate = bDate;
+    item.borrowTime = bTime;
+    item.expectedReturn = exp;
+    item.photo = photoId;
+    state.history.push({ action: 'borrowed', itemId: id, itemName: item.name, borrower, date: bDate, time: bTime, expectedReturn: exp || '', photo: photoId, signPhoto: signId || null });
+    save();
+    el('borrowForm').reset(); el('borrowPreview').hidden = true;
+    setTimeout(() => resetPhotoFrame('borrowPhotoContainer','borrowPhoto','borrowPreview'), 250);
+    // clear signature pad UI
+    try{ if(window.__borrowSignPad) window.__borrowSignPad.clear(); }catch(e){};
+
+    populateSelects();
+    renderStats(); await renderDashboardList(); renderHistoryList();
+    showView('dashboard');
+    showToast('Peminjaman tercatat');
+  }catch(err){
+    console.error(err);
+    showToast('Gagal mencatat peminjaman','danger');
+  }
+});
 
 if(el('returnForm')) el('returnForm').addEventListener('submit', async e=> {
-e.preventDefault();
-try{
-const id = el('returnSelect').value; if(!id) return showToast('Pilih barang', 'warning');
-const rDate = localISODate();
-const photoInput = el('returnPhoto');
-photoInput.setAttribute('required', 'true'); // 🔒 enforce via HTML5
-const photoId = photoInput.dataset.photoId || null;
-if (!photoId) { showToast('Harap ambil foto saat pengembalian', 'warning'); return; }
-const item = state.items.find(x=>x.id===id); if(!item) { showToast('Barang tidak ditemukan', 'danger'); return; }
-state.history.push({ action:'returned', itemId:id, itemName:item.name, borrower: item.borrowedBy || null, date:rDate, photo: photoId });
-item.status='available'; item.borrowedBy=null; item.borrowDate=null; item.expectedReturn=null; item.photo = photoId;
-save();
-el('returnForm').reset(); el('returnPreview').hidden=true;
-resetPhotoFrame('returnPhotoContainer','returnPhoto','returnPreview');
-populateSelects();
-renderStats(); await renderDashboardList(); renderHistoryList();
-showView('dashboard');
-showToast('Pengembalian tercatat');
-}catch(err){
-console.error(err);
-showToast('Gagal mencatat pengembalian','danger');
-}
+  e.preventDefault();
+  try{
+    const id = el('returnSelect').value; if(!id) return showToast('Pilih barang', 'warning');
+    const now = new Date();
+    const rDate = now.toISOString().split('T')[0];
+    const rTime = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const photoInput = el('returnPhoto');
+    photoInput.setAttribute('required', 'true');
+    const photoId = photoInput.dataset.photoId || null;
+    if (!photoId) { showToast('Harap ambil foto saat pengembalian', 'warning'); return; }
+
+    // signature (wajib)
+    const signPad = window.__returnSignPad;
+    const signData = signPad ? signPad.getDataUrl() : '';
+    if(!signData || signData.length < 40){ showToast('Harap isi tanda tangan saat pengembalian', 'warning'); return; }
+    let signId = null;
+    try{
+      const signBlob = dataURLtoBlob(signData);
+      if(signBlob){ signId = 'sign_' + uid(); await putPhoto(signId, signBlob); photoCache.set(signId, signBlob); }
+    }catch(err){ console.error('saving sign failed', err); }
+
+    const item = state.items.find(x=>x.id===id); if(!item) { showToast('Barang tidak ditemukan', 'danger'); return; }
+    state.history.push({ action:'returned', itemId:id, itemName:item.name, borrower: item.borrowedBy || null, date:rDate, time: rTime, photo: photoId, signPhoto: signId || null });
+    item.status='available';
+    item.borrowedBy=null;
+    item.borrowDate=null;
+    item.borrowTime=null;
+    item.expectedReturn=null;
+    item.photo = photoId;
+    save();
+    el('returnForm').reset(); el('returnPreview').hidden=true;
+    setTimeout(() => resetPhotoFrame('returnPhotoContainer','returnPhoto','returnPreview'), 250);
+    // clear signature pad UI
+    try{ if(window.__returnSignPad) window.__returnSignPad.clear(); }catch(e){};
+
+    populateSelects();
+    renderStats(); await renderDashboardList(); renderHistoryList();
+    showView('dashboard');
+    showToast('Pengembalian tercatat');
+  }catch(err){
+    console.error(err);
+    showToast('Gagal mencatat pengembalian','danger');
+  }
 });
-
-
-// resetPhotoFrame now also clears dataset.photoId
-function resetPhotoFrame(containerId, inputId, previewId) {
-const container = document.getElementById(containerId);
-const inputEl = document.getElementById(inputId);
-const previewEl = document.getElementById(previewId);
-if(inputEl) {
-inputEl.value = '';
-inputEl.dataset.photoId = '';
-inputEl.removeAttribute('required'); // reset required state after submit
-}
-if(previewEl) previewEl.innerHTML = '';
-if(container) container.classList.remove('has-image');
-const btn = container ? container.querySelector('.btn-remove-photo') : null;
-if (btn) btn.remove();
-}
 
 /* Photo inputs */
 if(el('borrowPhoto')) el('borrowPhoto').addEventListener('change', async e => {
@@ -533,11 +692,7 @@ if(el('returnPhoto')) el('returnPhoto').addEventListener('change', async e => {
 });
 
 /* history month */
-if(el('historyMonth')) el('historyMonth').addEventListener('input', ()=> { renderHistoryList(); });
-
-/* export/import/clear (improved backup handling) */
-
-if (el('exportMonthPdf')) el('exportMonthPdf').addEventListener('click', () => {
+if (el('exportMonthPdf')) el('exportMonthPdf').addEventListener('click', async () => {
   try {
     const selectedMonth = el('historyMonth').value;
     if (!selectedMonth) return showToast("Silakan pilih bulan terlebih dahulu.", "warning");
@@ -547,16 +702,16 @@ if (el('exportMonthPdf')) el('exportMonthPdf').addEventListener('click', () => {
     const titleText = `Riwayat Peminjaman Barang — ${monthName} ${year}`;
 
     const monthData = state.history.filter(h => {
-    const d = new Date(h.date);
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const monthStr = `${yyyy}-${mm}`;
-    return monthStr === selectedMonth;
+      const date = new Date(h.date);
+      return date.toISOString().slice(0, 7) === selectedMonth;
     }).sort((a, b) => new Date(a.date) - new Date(b.date));
 
     if (monthData.length === 0) return showToast("Tidak ada data untuk bulan ini.", "info");
 
-    // 🔥 Group by borrower + item
+    // Show progress for PDF generation
+    showProgress("Menyiapkan PDF...", 10);
+
+    // Group by borrower + item
     const grouped = {};
     monthData.forEach(h => {
       const key = (h.borrower || h.by || '') + "_" + h.itemName;
@@ -565,54 +720,202 @@ if (el('exportMonthPdf')) el('exportMonthPdf').addEventListener('click', () => {
           nama: h.borrower || h.by || '',
           barang: h.itemName,
           tanggalPinjam: h.action === "borrowed" ? h.date : "",
+          jamPinjam: h.action === "borrowed" ? (h.time || "") : "",
           tanggalPerkiraan: h.expectedReturn || "",
           tanggalKembali: h.action === "returned" ? h.date : "",
-          status: h.action === "returned" ? "Dikembalikan" : "Dipinjam"
+          jamKembali: h.action === "returned" ? (h.time || "") : "",
+          status: h.action === "returned" ? "Dikembalikan" : "Dipinjam",
+          borrowSignPhoto: h.action === "borrowed" ? h.signPhoto : null,
+          returnSignPhoto: h.action === "returned" ? h.signPhoto : null
         };
       } else {
         if (h.action === "returned") {
           grouped[key].tanggalKembali = h.date;
+          grouped[key].jamKembali = h.time || grouped[key].jamKembali || "";
           grouped[key].status = "Dikembalikan";
+          grouped[key].returnSignPhoto = h.signPhoto;
+        } else if (h.action === "borrowed") {
+          grouped[key].borrowSignPhoto = h.signPhoto;
         }
       }
     });
 
-    const rows = Object.values(grouped).map(r => [
-      r.nama,
-      r.barang,
-      r.tanggalPinjam,
-      r.tanggalPerkiraan,
-      r.tanggalKembali,
-      r.status
-    ]);
+    showProgress("Mengambil gambar tanda tangan...", 30);
 
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-
-    // Title
-    doc.setFontSize(16);
-    doc.text(titleText, 14, 20);
-
-    // Styled Table
-    doc.autoTable({
-      startY: 30,
-      head: [['Nama', 'Barang', 'Tanggal Pinjam', 'Perkiraan', 'Tanggal Kembali', 'Status']],
-      body: rows,
-      theme: 'grid',
-      headStyles: { fillColor: [108, 92, 231], textColor: 255, halign: 'center' },
-      bodyStyles: { fontSize: 10 },
-      alternateRowStyles: { fillColor: [245, 245, 245] }
+    // Collect all signature photo IDs and fetch them
+    const signatureIds = new Set();
+    Object.values(grouped).forEach(item => {
+      if (item.borrowSignPhoto) signatureIds.add(item.borrowSignPhoto);
+      if (item.returnSignPhoto) signatureIds.add(item.returnSignPhoto);
     });
 
-    doc.save(`Riwayat_${selectedMonth}.pdf`);
+    const signatureDataUrls = {};
+    
+    if (signatureIds.size > 0) {
+      const idArray = Array.from(signatureIds);
+      const blobs = await fetchBlobsInBatches(idArray, 5);
+      
+      for (let i = 0; i < idArray.length; i++) {
+        if (blobs[i]) {
+          // Convert blob to data URL for PDF
+          const dataUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.readAsDataURL(blobs[i]);
+          });
+          signatureDataUrls[idArray[i]] = dataUrl;
+        }
+        showProgress(`Memproses tanda tangan ${i + 1}/${idArray.length}...`, 30 + (i / idArray.length) * 40);
+      }
+    }
+
+    showProgress("Membuat PDF...", 80);
+
+    const { jsPDF } = window.jspdf;
+    // Create PDF in landscape mode
+    const doc = new jsPDF('landscape', 'mm', 'a4');
+    
+    // Page dimensions for landscape A4
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    // Title - centered
+    doc.setFontSize(16);
+    doc.setFont(undefined, 'bold');
+    const titleWidth = doc.getTextWidth(titleText);
+    const titleX = (pageWidth - titleWidth) / 2;
+    doc.text(titleText, titleX, 20);
+
+    // Prepare data for autoTable
+    const tableRows = [];
+    Object.values(grouped).forEach(item => {
+      // Convert signatures to images for the table
+      const borrowSignImg = item.borrowSignPhoto && signatureDataUrls[item.borrowSignPhoto] ? 
+        { content: '', styles: { halign: 'center' } } : '';
+      const returnSignImg = item.returnSignPhoto && signatureDataUrls[item.returnSignPhoto] ? 
+        { content: '', styles: { halign: 'center' } } : '';
+
+      tableRows.push([
+        item.nama || '',
+        item.barang || '',
+        item.tanggalPinjam || '',
+        item.jamPinjam || '',
+        borrowSignImg,
+        item.tanggalPerkiraan || '',
+        item.tanggalKembali || '',
+        item.jamKembali || '',
+        returnSignImg,
+        item.status || ''
+      ]);
+    });
+
+    // Create the table with autoTable - let it spread evenly across the page
+    doc.autoTable({
+      startY: 30,
+      margin: { left: 15, right: 15 }, // 15mm margins on left and right
+      head: [[
+        'Nama Peminjam', 
+        'Nama Barang', 
+        'Tgl Pinjam', 
+        'Jam Pinjam',
+        'TTD Pinjam',
+        'Tgl Perkiraan', 
+        'Tgl Kembali', 
+        'Jam Kembali',
+        'TTD Kembali',
+        'Status'
+      ]],
+      body: tableRows,
+      theme: 'grid',
+      tableWidth: 'auto', // Let table width adjust automatically
+      headStyles: { 
+        fillColor: [108, 92, 231], 
+        textColor: 255, 
+        halign: 'center',
+        fontSize: 10,
+        fontStyle: 'bold'
+      },
+      bodyStyles: { 
+        fontSize: 9,
+        halign: 'center',
+        cellPadding: 3,
+        lineColor: [200, 200, 200],
+        lineWidth: 0.1
+      },
+      // Remove fixed columnStyles to allow even distribution
+      alternateRowStyles: { fillColor: [248, 248, 248] },
+      didDrawCell: function (data) {
+        // Add signature images to TTD columns
+        if (data.column.index === 4 || data.column.index === 8) { // TTD columns
+          const rowIndex = data.row.index;
+          const item = Object.values(grouped)[rowIndex];
+          
+          if (data.column.index === 4 && item.borrowSignPhoto && signatureDataUrls[item.borrowSignPhoto]) {
+            // Add borrow signature
+            try {
+              const imgWidth = 18;
+              const imgHeight = 8;
+              const imgX = data.cell.x + (data.cell.width - imgWidth) / 2;
+              const imgY = data.cell.y + (data.cell.height - imgHeight) / 2;
+              
+              doc.addImage(
+                signatureDataUrls[item.borrowSignPhoto],
+                'PNG',
+                imgX,
+                imgY,
+                imgWidth,
+                imgHeight
+              );
+            } catch (e) {
+              console.warn('Failed to add borrow signature:', e);
+            }
+          }
+          
+          if (data.column.index === 8 && item.returnSignPhoto && signatureDataUrls[item.returnSignPhoto]) {
+            // Add return signature
+            try {
+              const imgWidth = 18;
+              const imgHeight = 8;
+              const imgX = data.cell.x + (data.cell.width - imgWidth) / 2;
+              const imgY = data.cell.y + (data.cell.height - imgHeight) / 2;
+              
+              doc.addImage(
+                signatureDataUrls[item.returnSignPhoto],
+                'PNG',
+                imgX,
+                imgY,
+                imgWidth,
+                imgHeight
+              );
+            } catch (e) {
+              console.warn('Failed to add return signature:', e);
+            }
+          }
+        }
+      }
+    });
+
+    // Add footer with generation timestamp - centered
+    doc.setFontSize(8);
+    doc.setTextColor(128, 128, 128);
+    const footerText = `Digenerate pada: ${new Date().toLocaleString('id-ID')}`;
+    const footerWidth = doc.getTextWidth(footerText);
+    const footerX = (pageWidth - footerWidth) / 2;
+    doc.text(footerText, footerX, pageHeight - 10);
+
+    // Save the PDF
+    const filename = `Riwayat_${selectedMonth}_dengan_tanda_tangan.pdf`;
+    doc.save(filename);
+
+    hideProgress();
+    showToast(`PDF berhasil diekspor: ${filename}`, 'success');
+
   } catch (err) {
-    console.error(err);
-    showToast("Gagal Mengekspor PDF", "danger");
+    console.error('PDF Export Error:', err);
+    hideProgress();
+    showToast("Gagal mengekspor PDF: " + (err.message || 'Unknown error'), "danger");
   }
 });
-
-
-if(el('exportBtn')) el('exportBtn').addEventListener('click', ()=> { try{ const data = JSON.stringify(state, null, 2); downloadText('simisa-export.json', data); showToast('Berhasil mengekspor JSON', 'success'); }catch(err){ console.error(err); showToast('Gagal mengekspor','danger'); } });
 
 /* Full backup (state + IndexedDB photos) */
 async function exportFullBackup(){
@@ -625,7 +928,7 @@ async function exportFullBackup(){
 
     const ids = new Set();
     state.items.forEach(it => { if(it.photo) ids.add(it.photo); });
-    state.history.forEach(h => { if(h.photo) ids.add(h.photo); });
+    state.history.forEach(h => { if(h.photo) ids.add(h.photo); if(h.signPhoto) ids.add(h.signPhoto); });
     const idList = Array.from(ids);
     const total = idList.length;
 
@@ -756,15 +1059,15 @@ if (el('clearManageSearch')) {
 
 /* Hapus semua with safe cache cleanup */
 if(el('clearAll')) el('clearAll').addEventListener('click', ()=> {
-showConfirm('Apakah Anda yakin ingin menghapus seluruh data?', () => {
-localStorage.removeItem(STORAGE_KEY);
-state = {items:[], history:[]};
-save();
-clearPhotoCache();
-load();
-renderAll();
-showToast('Seluruh Data Berhasil Dihapus', 'danger');
-});
+  showConfirm('Apakah Anda yakin ingin menghapus seluruh data?', () => {
+    localStorage.removeItem(STORAGE_KEY);
+    state = {items:[], history:[]};
+    save();
+    clearPhotoCache();
+    load();
+    renderAll();
+    showToast('Seluruh Data Berhasil Dihapus', 'danger');
+  });
 });
 
 /* Event delegation for dashboard and manage lists */
@@ -777,62 +1080,58 @@ if(el('items')) el('items').addEventListener('click', (e)=>{
 
 /* Consolidated manageList delegation: delete/edit/save-edit/cancel-edit */
 if(el('manageList')) el('manageList').addEventListener('click', (e)=>{
-const btn = e.target.closest('button[data-action]'); if(!btn) return;
-const action = btn.dataset.action; const id = btn.dataset.id;
-const item = state.items.find(x=>x.id===id);
-if(!item && action !== 'cancel-edit') return;
+  const btn = e.target.closest('button[data-action]'); if(!btn) return;
+  const action = btn.dataset.action; const id = btn.dataset.id;
+  const item = state.items.find(x=>x.id===id);
+  if(!item && action !== 'cancel-edit') return;
 
+  if(action==='delete'){
+    showConfirm('Apakah Anda yakin ingin menghapus barang ini?', () => {
+      state.items = state.items.filter(x=>x.id!==id);
+      save();
+      renderManage();
+      renderStats();
+      renderDashboardList();
+      showToast('Barang dihapus','danger');
+    });
+    return;
+  }
 
-if(action==='delete'){
-showConfirm('Apakah Anda yakin ingin menghapus barang ini?', () => {
-state.items = state.items.filter(x=>x.id!==id);
-save();
-renderManage();
-renderStats();
-renderDashboardList();
-showToast('Barang dihapus','danger');
-});
-return;
-}
+  if(action==='edit'){
+    // render inline edit form inside the card
+    const card = btn.closest('.card');
+    card.innerHTML = `
+      <div class="form">
+        <input class="input" id="editName" value="${escapeHtml(item.name)}" placeholder="Nama barang" />
+        <input class="input" id="editCategory" value="${escapeHtml(item.category||'')}" placeholder="Kategori" />
+        <input class="input" id="editDesc" value="${escapeHtml(item.desc||'')}" placeholder="Deskripsi" />
+        <select class="select" id="editStatus" disabled>
+          <option value="available" ${item.status==='available'?'selected':''}>Tersedia</option>
+          <option value="borrowed" ${item.status==='borrowed'?'selected':''}>Dipinjam</option>
+        </select>
+        <div class="actions">
+          <button class="btn primary" data-action="save-edit" data-id="${id}">Simpan</button>
+          <button class="btn ghost" data-action="cancel-edit" data-id="${id}">Batal</button>
+        </div>
+      </div>
+    `;
+    return;
+  }
 
+  if(action==='save-edit'){
+    const card = btn.closest('.card');
+    const newName = card.querySelector('#editName').value.trim();
+    if(!newName) return showToast('Nama wajib diisi', 'warning');
+    const it = state.items.find(x=>x.id===id); if(!it) return;
+    it.name = newName; it.category = card.querySelector('#editCategory').value.trim(); it.desc = card.querySelector('#editDesc').value.trim();
+    save(); renderManage(); renderStats(); renderDashboardList(); showToast('Barang diperbarui','success');
+    return;
+  }
 
-if(action==='edit'){
-// render inline edit form inside the card
-const card = btn.closest('.card');
-card.innerHTML = `
-<div class="form">
-<input class="input" id="editName" value="${escapeHtml(item.name)}" placeholder="Nama barang" />
-<input class="input" id="editCategory" value="${escapeHtml(item.category||'')}" placeholder="Kategori" />
-<input class="input" id="editDesc" value="${escapeHtml(item.desc||'')}" placeholder="Deskripsi" />
-<select class="select" id="editStatus" disabled>
-<option value="available" ${item.status==='available'?'selected':''}>Tersedia</option>
-<option value="borrowed" ${item.status==='borrowed'?'selected':''}>Dipinjam</option>
-</select>
-<div class="actions">
-<button class="btn primary" data-action="save-edit" data-id="${id}">Simpan</button>
-<button class="btn ghost" data-action="cancel-edit" data-id="${id}">Batal</button>
-</div>
-</div>
-`;
-return;
-}
-
-
-if(action==='save-edit'){
-const card = btn.closest('.card');
-const newName = card.querySelector('#editName').value.trim();
-if(!newName) return showToast('Nama wajib diisi', 'warning');
-const it = state.items.find(x=>x.id===id); if(!it) return;
-it.name = newName; it.category = card.querySelector('#editCategory').value.trim(); it.desc = card.querySelector('#editDesc').value.trim();
-save(); renderManage(); renderStats(); renderDashboardList(); showToast('Barang diperbarui','success');
-return;
-}
-
-
-if(action==='cancel-edit'){
-renderManage();
-return;
-}
+  if(action==='cancel-edit'){
+    renderManage();
+    return;
+  }
 });
 
 /* small helpers */
@@ -866,12 +1165,12 @@ renderAll();
 showView('dashboard');
 
 /* Set default month & dates */
-const thisMonth = localYearMonth();
+const thisMonth = new Date().toISOString().slice(0, 7);
 if (el('historyMonth')) el('historyMonth').value = thisMonth;
 
 // centralize expectedReturn min logic
 function setExpectedReturnMin() {
-  const today = localISODate();
+  const today = new Date().toISOString().split('T')[0];
   if (el('borrowDate')) el('borrowDate').value = today;
   if (el('expectedReturn')) {
     el('expectedReturn').value = el('expectedReturn').value || today;
@@ -925,12 +1224,15 @@ function enhancePhotoPreview(containerId, inputId, previewId) {
     observer.observe(previewEl, { childList: true });
 }
 
-
 function resetPhotoFrame(containerId, inputId, previewId) {
     const container = document.getElementById(containerId);
     const inputEl = document.getElementById(inputId);
     const previewEl = document.getElementById(previewId);
-    if(inputEl) inputEl.value = '';
+    if(inputEl) {
+        try{ inputEl.value = ''; }catch(e){}
+        try{ inputEl.dataset.photoId = ''; }catch(e){}
+        try{ inputEl.removeAttribute('required'); }catch(e){}
+    }
     if(previewEl) previewEl.innerHTML = '';
     if(container) container.classList.remove('has-image');
     const btn = container ? container.querySelector('.btn-remove-photo') : null;
@@ -943,8 +1245,6 @@ document.addEventListener('DOMContentLoaded', () => {
     enhancePhotoPreview('returnPhotoContainer', 'returnPhoto', 'returnPreview');
     hideProgress();
 });
-
-// Restrict Perkiraan pengembalian Date to today or later (already handled in setExpectedReturnMin)
 
 function showProgress(message, percent) {
   const overlay = el('progressOverlay');
@@ -965,120 +1265,39 @@ function hideProgress() {
 // expose some helpers for debugging in console if needed
 window.simisaHelpers = { clearPhotoCache, getCachedPhoto };
 
-
 /* Confirmation Modal */
 function showConfirm(message, onConfirm) {
-const overlay = document.createElement('div');
-overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:10000;';
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:10000;';
 
+  const box = document.createElement('div');
+  box.style.cssText = 'background:#fff;padding:20px;border-radius:12px;max-width:320px;width:90%;text-align:center;box-shadow:0 6px 18px rgba(0,0,0,0.3);';
 
-const box = document.createElement('div');
-box.style.cssText = 'background:#fff;padding:20px;border-radius:12px;max-width:320px;width:90%;text-align:center;box-shadow:0 6px 18px rgba(0,0,0,0.3);';
+  const msg = document.createElement('div');
+  msg.textContent = message;
+  msg.style.marginBottom = '16px';
 
+  const actions = document.createElement('div');
+  actions.style.display = 'flex';
+  actions.style.justifyContent = 'space-around';
 
-const msg = document.createElement('div');
-msg.textContent = message;
-msg.style.marginBottom = '16px';
+  const yesBtn = document.createElement('button');
+  yesBtn.className = 'btn danger';
+  yesBtn.textContent = 'Ya';
+  yesBtn.onclick = () => {
+    overlay.remove();
+    if (typeof onConfirm === 'function') onConfirm();
+  };
 
+  const noBtn = document.createElement('button');
+  noBtn.className = 'btn ghost';
+  noBtn.textContent = 'Batal';
+  noBtn.onclick = () => overlay.remove();
 
-const actions = document.createElement('div');
-actions.style.display = 'flex';
-actions.style.justifyContent = 'space-around';
-
-
-const yesBtn = document.createElement('button');
-yesBtn.className = 'btn danger';
-yesBtn.textContent = 'Ya';
-yesBtn.onclick = () => {
-overlay.remove();
-if (typeof onConfirm === 'function') onConfirm();
-};
-
-
-const noBtn = document.createElement('button');
-noBtn.className = 'btn ghost';
-noBtn.textContent = 'Batal';
-noBtn.onclick = () => overlay.remove();
-
-
-actions.appendChild(yesBtn);
-actions.appendChild(noBtn);
-box.appendChild(msg);
-box.appendChild(actions);
-overlay.appendChild(box);
-document.body.appendChild(overlay);
+  actions.appendChild(yesBtn);
+  actions.appendChild(noBtn);
+  box.appendChild(msg);
+  box.appendChild(actions);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
 }
-
-/* Tombol tandai dikembalikan di dashboard */
-if (it.status === 'borrowed') {
-  html += `<button class="btn borrowed-return" data-action="return" data-id="${it.id}">Kembalikan</button>`;
-}
-
-/* --- PWA Install Prompt --- */
-let deferredPrompt;
-
-window.addEventListener("beforeinstallprompt", (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
-
-  // Create install button
-  const installBtn = document.createElement("button");
-  installBtn.textContent = "📲 Pasang SiMISA";
-  installBtn.className = "btn primary";
-  installBtn.style.position = "fixed";
-  installBtn.style.bottom = "20px";
-  installBtn.style.right = "20px";
-  installBtn.style.zIndex = "9999";
-  document.body.appendChild(installBtn);
-
-  // Handle click
-  installBtn.addEventListener("click", async () => {
-    installBtn.remove();
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    console.log(`User response to install: ${outcome}`);
-    deferredPrompt = null;
-
-    if (outcome === "accepted") {
-      showToast("Aplikasi dipasang ✔️", "success");
-    } else {
-      showToast("Pemasangan dibatalkan ❌", "warning");
-    }
-  });
-});
-
-// Optional: detect if already installed
-window.addEventListener("appinstalled", () => {
-  console.log("PWA installed");
-  showToast("Aplikasi berhasil dipasang 🎉", "success");
-});
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
