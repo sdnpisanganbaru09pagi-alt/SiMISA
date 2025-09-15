@@ -7,14 +7,7 @@ if ("serviceWorker" in navigator) {
 }
 ;
 /*
-  Patched & cleaned version of app.js
-  - Replaced alert() usage with showToast()
-  - Translated remaining English UI strings to Indonesian
-  - Removed duplicate/unused code (duplicate expectedReturn min setters, duplicate listeners)
-  - Fixed photo preview HTML bug
-  - Consolidated manageList event delegation into a single handler
-  - Removed small duplicate assignments
-  - Kept functionality unchanged where possible
+  - Penambahan Fitur Tanda Tangan Pada Laporan Bulanan 15/09
 */
 
 const DB_NAME = 'simisa_photos';
