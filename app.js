@@ -6,6 +6,348 @@ if ("serviceWorker" in navigator) {
   });
 }
 ;
+
+// Add this code to your app.js file, preferably near the top after the service worker registration
+
+/* PWA Install Notification */
+let deferredPrompt;
+let installNotificationShown = false;
+
+// Check if app was already installed
+function isAppInstalled() {
+  // Check if running in standalone mode (already installed)
+  return window.matchMedia('(display-mode: standalone)').matches || 
+         window.navigator.standalone === true;
+}
+
+// Check if user has previously dismissed install prompt
+function hasUserDismissedInstall() {
+  try {
+    return localStorage.getItem('pwa_install_dismissed') === 'true';
+  } catch (e) {
+    return false;
+  }
+}
+
+// Mark install prompt as dismissed
+function markInstallDismissed() {
+  try {
+    localStorage.setItem('pwa_install_dismissed', 'true');
+  } catch (e) {
+    console.error('Failed to save install dismissal', e);
+  }
+}
+
+// Create and show install notification
+function showInstallNotification() {
+  if (installNotificationShown || isAppInstalled() || hasUserDismissedInstall()) {
+    return;
+  }
+
+  installNotificationShown = true;
+
+  // Create notification element
+  const notification = document.createElement('div');
+  notification.id = 'pwa-install-notification';
+  notification.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    color: white;
+    padding: 12px 16px;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    font-size: 14px;
+    transform: translateY(-100%);
+    transition: transform 0.3s ease;
+  `;
+
+  // Notification content
+  notification.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="font-size: 18px;">📱</div>
+      <div>
+        <div style="font-weight: 600; margin-bottom: 2px;">Install SiMISA</div>
+        <div style="font-size: 12px; opacity: 0.9;">Install aplikasi untuk akses yang lebih cepat</div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <button id="pwa-install-btn" style="
+        background: rgba(255,255,255,0.2);
+        border: 1px solid rgba(255,255,255,0.3);
+        color: white;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+      ">Install</button>
+      <button id="pwa-dismiss-btn" style="
+        background: transparent;
+        border: none;
+        color: white;
+        padding: 6px;
+        border-radius: 4px;
+        font-size: 16px;
+        cursor: pointer;
+        opacity: 0.8;
+        transition: opacity 0.2s;
+      ">&times;</button>
+    </div>
+  `;
+
+  // Add to page
+  document.body.appendChild(notification);
+
+  // Animate in
+  requestAnimationFrame(() => {
+    notification.style.transform = 'translateY(0)';
+  });
+
+  // Handle install button click
+  const installBtn = notification.querySelector('#pwa-install-btn');
+  const dismissBtn = notification.querySelector('#pwa-dismiss-btn');
+
+  installBtn.addEventListener('click', async () => {
+    if (deferredPrompt) {
+      // Show the install prompt
+      deferredPrompt.prompt();
+      
+      // Wait for the user to respond to the prompt
+      const { outcome } = await deferredPrompt.userChoice;
+      
+      console.log(`User response to install prompt: ${outcome}`);
+      
+      // Reset the deferred prompt variable
+      deferredPrompt = null;
+      
+      // Remove notification
+      hideInstallNotification();
+      
+      if (outcome === 'accepted') {
+        showToast('App sedang diinstall...', 'success');
+      }
+    } else {
+      // Fallback: show manual install instructions
+      showManualInstallInstructions();
+    }
+  });
+
+  // Handle dismiss button click
+  dismissBtn.addEventListener('click', () => {
+    markInstallDismissed();
+    hideInstallNotification();
+  });
+
+  // Auto-hide after 10 seconds if no interaction
+  setTimeout(() => {
+    if (document.getElementById('pwa-install-notification')) {
+      hideInstallNotification();
+    }
+  }, 10000);
+}
+
+// Hide install notification
+function hideInstallNotification() {
+  const notification = document.getElementById('pwa-install-notification');
+  if (notification) {
+    notification.style.transform = 'translateY(-100%)';
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 300);
+  }
+}
+
+// Show manual install instructions for browsers that don't support the install prompt
+function showManualInstallInstructions() {
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isAndroid = /Android/.test(navigator.userAgent);
+  
+  let instructions = '';
+  
+  if (isIOS) {
+    instructions = `
+      <div style="text-align: left; line-height: 1.5;">
+        <p><strong>Untuk install di iOS:</strong></p>
+        <p>1. Tap tombol Share (📤) di Safari</p>
+        <p>2. Pilih "Add to Home Screen"</p>
+        <p>3. Tap "Add" untuk confirm</p>
+      </div>
+    `;
+  } else if (isAndroid) {
+    instructions = `
+      <div style="text-align: left; line-height: 1.5;">
+        <p><strong>Untuk install di Android:</strong></p>
+        <p>1. Tap menu (⋮) di browser</p>
+        <p>2. Pilih "Add to Home screen" atau "Install app"</p>
+        <p>3. Tap "Add" atau "Install"</p>
+      </div>
+    `;
+  } else {
+    instructions = `
+      <div style="text-align: left; line-height: 1.5;">
+        <p><strong>Untuk install di desktop:</strong></p>
+        <p>1. Cari icon install (⬇️) di address bar</p>
+        <p>2. Atau buka menu browser dan pilih "Install SiMISA"</p>
+        <p>3. Klik "Install" untuk confirm</p>
+      </div>
+    `;
+  }
+
+  // Create modal for instructions
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10001;
+  `;
+
+  modal.innerHTML = `
+    <div style="
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      max-width: 320px;
+      width: 90%;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+    ">
+      <h3 style="margin: 0 0 16px 0; color: #6c5ce7;">Install SiMISA</h3>
+      ${instructions}
+      <button id="close-instructions" style="
+        background: #6c5ce7;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+        width: 100%;
+        margin-top: 16px;
+      ">Mengerti</button>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  modal.querySelector('#close-instructions').addEventListener('click', () => {
+    modal.remove();
+  });
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      modal.remove();
+    }
+  });
+}
+
+// Listen for the beforeinstallprompt event
+window.addEventListener('beforeinstallprompt', (e) => {
+  console.log('PWA install prompt available');
+  
+  // Prevent the mini-infobar from appearing on mobile
+  e.preventDefault();
+  
+  // Save the event so it can be triggered later
+  deferredPrompt = e;
+  
+  // Show our custom install notification after a short delay
+  setTimeout(() => {
+    showInstallNotification();
+  }, 3000); // Show after 3 seconds of app usage
+});
+
+// Listen for app installation
+window.addEventListener('appinstalled', (e) => {
+  console.log('PWA was installed');
+  showToast('App berhasil diinstall!', 'success');
+  
+  // Hide any visible install notification
+  hideInstallNotification();
+  
+  // Reset the deferred prompt
+  deferredPrompt = null;
+});
+
+// Check if we should show install notification on load
+document.addEventListener('DOMContentLoaded', () => {
+  // Don't show immediately, wait for user to interact with the app first
+  setTimeout(() => {
+    // Only show if the beforeinstallprompt hasn't fired and conditions are met
+    if (!deferredPrompt && !isAppInstalled() && !hasUserDismissedInstall()) {
+      // For browsers that don't support beforeinstallprompt
+      // Show notification after some user interaction
+      let interactionCount = 0;
+      
+      const trackInteraction = () => {
+        interactionCount++;
+        if (interactionCount >= 3) { // After 3 interactions
+          showInstallNotification();
+          // Remove listeners after showing notification
+          document.removeEventListener('click', trackInteraction);
+          document.removeEventListener('touchstart', trackInteraction);
+        }
+      };
+      
+      document.addEventListener('click', trackInteraction);
+      document.addEventListener('touchstart', trackInteraction);
+    }
+  }, 5000); // Wait 5 seconds before starting to track interactions
+});
+
+// Add manual install button to header (optional)
+function addManualInstallButton() {
+  const headerActions = document.querySelector('.header-actions');
+  if (headerActions && !isAppInstalled() && !hasUserDismissedInstall()) {
+    const installBtn = document.createElement('button');
+    installBtn.className = 'btn primary';
+    installBtn.style.cssText = `
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 4px rgba(108, 92, 231, 0.2);
+    `;
+    installBtn.innerHTML = '<span style="font-size: 14px;">📱</span>Install';
+    installBtn.title = 'Install aplikasi ke perangkat Anda';
+    
+    installBtn.addEventListener('click', () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          if (choiceResult.outcome === 'accepted') {
+            showToast('App sedang diinstall...', 'success');
+            installBtn.remove(); // Remove button after successful install
+          }
+          deferredPrompt = null;
+        });
+      } else {
+        showManualInstallInstructions();
+      }
+    });
+    
+    headerActions.appendChild(installBtn);
+  }
+}
+
+// Call this after DOM is loaded
+setTimeout(addManualInstallButton, 1000);
+
 /*
   - Penambahan Fitur Tanda Tangan Pada Laporan Bulanan 15/09
   - Perbaikan Bug Data di PDF

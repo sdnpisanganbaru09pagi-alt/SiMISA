@@ -308,3 +308,84 @@ body{
   box-shadow: 0 6px 18px rgba(249, 115, 22, 0.25);
 }
 
+/* PWA Install Notification Styles */
+
+/* PWA Install Notification Styles */
+
+#pwa-install-notification {
+  font-family: inherit;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+#pwa-install-notification button {
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+#pwa-install-btn:hover {
+  background: rgba(255,255,255,0.3) !important;
+  transform: translateY(-1px);
+}
+
+#pwa-dismiss-btn:hover {
+  opacity: 1 !important;
+  background: rgba(255,255,255,0.1) !important;
+}
+
+/* Adjust main content when notification is shown */
+body:has(#pwa-install-notification) .app {
+  margin-top: 60px;
+  transition: margin-top 0.3s ease;
+}
+
+/* Manual install button in header */
+.header-actions .btn {
+  white-space: nowrap;
+  color: white !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  font-weight: 600 !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.header-actions .btn:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+  color: white !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  #pwa-install-notification {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+  
+  #pwa-install-notification > div:first-child > div:last-child > div:last-child {
+    font-size: 11px !important;
+  }
+  
+  #pwa-install-btn {
+    padding: 5px 10px !important;
+    font-size: 11px !important;
+  }
+  
+  body:has(#pwa-install-notification) .app {
+    margin-top: 50px;
+  }
+}
+
+/* Animation for install button in header */
+@keyframes pulse-install {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.header-actions .btn:hover {
+  animation: pulse-install 0.3s ease;
+}
