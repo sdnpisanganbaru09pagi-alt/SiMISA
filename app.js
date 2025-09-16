@@ -8,6 +8,7 @@ if ("serviceWorker" in navigator) {
 ;
 /*
   - Penambahan Fitur Tanda Tangan Pada Laporan Bulanan 15/09
+  - Perbaikan Bug Data di PDF
 */
 
 const DB_NAME = 'simisa_photos';
@@ -708,40 +709,78 @@ if (el('exportMonthPdf')) el('exportMonthPdf').addEventListener('click', async (
     showProgress("Menyiapkan PDF...", 10);
 
     // Group by borrower + item to avoid duplicates
-    const grouped = {};
-    monthData.forEach(h => {
-      const key = (h.borrower || h.by || '') + "_" + h.itemName;
-      if (!grouped[key]) {
-        grouped[key] = {
-          nama: h.borrower || h.by || '',
-          barang: h.itemName,
-          tanggalPinjam: h.action === "borrowed" ? h.date : "",
-          jamPinjam: h.action === "borrowed" ? (h.time || "") : "",
-          tanggalPerkiraan: h.expectedReturn || "",
-          tanggalKembali: h.action === "returned" ? h.date : "",
-          jamKembali: h.action === "returned" ? (h.time || "") : "",
-          status: h.action === "returned" ? "Dikembalikan" : "Dipinjam",
-          borrowSignPhoto: h.action === "borrowed" ? h.signPhoto : null,
-          returnSignPhoto: h.action === "returned" ? h.signPhoto : null
-        };
-      } else {
-        // Update existing entry with return data or borrow signature
-        if (h.action === "returned") {
-          grouped[key].tanggalKembali = h.date;
-          grouped[key].jamKembali = h.time || grouped[key].jamKembali || "";
-          grouped[key].status = "Dikembalikan";
-          // Only set return signature if not already set
-          if (!grouped[key].returnSignPhoto) {
-            grouped[key].returnSignPhoto = h.signPhoto;
-          }
-        } else if (h.action === "borrowed") {
-          // Only set borrow signature if not already set
-          if (!grouped[key].borrowSignPhoto) {
-            grouped[key].borrowSignPhoto = h.signPhoto;
-          }
-        }
+    // Simple approach: Use crypto.randomUUID() for unique keys
+
+// Generate unique transaction groups using crypto UUID
+const grouped = {};
+const borrowTransactions = new Map(); // Track active borrows
+
+monthData.forEach(h => {
+  if (h.action === "borrowed") {
+    // Create unique key using crypto UUID
+    const uniqueKey = crypto.randomUUID ? crypto.randomUUID() : 
+      'uuid-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now();
+    
+    grouped[uniqueKey] = {
+      nama: h.borrower || h.by || '',
+      barang: h.itemName,
+      tanggalPinjam: h.date,
+      jamPinjam: h.time || "",
+      tanggalPerkiraan: h.expectedReturn || "",
+      tanggalKembali: "",
+      jamKembali: "",
+      status: "Dipinjam",
+      borrowSignPhoto: h.signPhoto,
+      returnSignPhoto: null
+    };
+    
+    // Store this borrow for matching with returns
+    const borrowKey = `${h.borrower || h.by}_${h.itemName}`;
+    if (!borrowTransactions.has(borrowKey)) {
+      borrowTransactions.set(borrowKey, []);
+    }
+    borrowTransactions.get(borrowKey).push(uniqueKey);
+    
+  } else if (h.action === "returned") {
+    // Find matching borrow transaction
+    const borrowKey = `${h.borrower || h.by}_${h.itemName}`;
+    const borrowKeys = borrowTransactions.get(borrowKey) || [];
+    
+    // Find the first unreturned borrow for this person/item
+    let matchedKey = null;
+    for (const key of borrowKeys) {
+      if (grouped[key] && grouped[key].status === "Dipinjam") {
+        matchedKey = key;
+        break;
       }
-    });
+    }
+    
+    if (matchedKey) {
+      // Update existing borrow with return info
+      grouped[matchedKey].tanggalKembali = h.date;
+      grouped[matchedKey].jamKembali = h.time || "";
+      grouped[matchedKey].status = "Dikembalikan";
+      grouped[matchedKey].returnSignPhoto = h.signPhoto;
+    } else {
+      // Create standalone return entry
+      const uniqueKey = crypto.randomUUID ? crypto.randomUUID() : 
+        'uuid-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now();
+      
+      grouped[uniqueKey] = {
+        nama: h.borrower || h.by || '',
+        barang: h.itemName,
+        tanggalPinjam: "",
+        jamPinjam: "",
+        tanggalPerkiraan: "",
+        tanggalKembali: h.date,
+        jamKembali: h.time || "",
+        status: "Dikembalikan",
+        borrowSignPhoto: null,
+        returnSignPhoto: h.signPhoto
+      };
+    }
+  }
+});
 
     showProgress("Mengambil gambar tanda tangan...", 30);
 
