@@ -130,12 +130,22 @@
   </section>
 
   <section class="view" hidden id="backup">
-    <div class="actions horizontal-actions">
-      <button class="btn export" id="exportBtn" title="Ekspor data">Ekspor Data</button>
-      <button class="btn import" id="importBtn" title="Impor data">Impor Data</button>
-      <button class="btn danger" id="clearAll">Hapus Data</button>
-    </div>
-  </section>
+  <!-- School Name Configuration -->
+  <div class="meta" style="font-weight:bold;margin-bottom:8px;font-size:1.1em;color:#6c5ce7;">🏫 Pengaturan Nama Sekolah</div>
+  <div style="background:#ffffff;border:1px solid #ddd;padding:12px;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,0.1);margin-bottom:16px;">
+    <label for="schoolName" style="display:block;margin-bottom:6px;font-weight:600;color:#374151;">Nama Sekolah:</label>
+    <input class="input" id="schoolName" placeholder="Masukkan nama sekolah untuk laporan PDF" type="text" style="margin-bottom:8px;"/>
+    <div class="note">Nama sekolah akan ditampilkan pada laporan PDF yang diekspor dari halaman Riwayat.</div>
+  </div>
+
+  <!-- Data Management Actions -->
+  <div class="meta" style="font-weight:bold;margin-bottom:8px;font-size:1.1em;color:#6c5ce7;">💼 Managemen Data</div>
+  <div class="actions horizontal-actions">
+    <button class="btn export" id="exportBtn" title="Ekspor data">Ekspor Data</button>
+    <button class="btn import" id="importBtn" title="Impor data">Impor Data</button>
+    <button class="btn danger" id="clearAll">Hapus Data</button>
+  </div>
+</section>
 </main>
 
 <footer class="footer">

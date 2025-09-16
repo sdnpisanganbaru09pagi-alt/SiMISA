@@ -685,6 +685,7 @@ if(el('returnPhoto')) el('returnPhoto').addEventListener('change', async e => {
 });
 
 /* history month */
+/* Updated PDF Export with improvements */
 if (el('exportMonthPdf')) el('exportMonthPdf').addEventListener('click', async () => {
   try {
     const selectedMonth = el('historyMonth').value;
@@ -692,7 +693,9 @@ if (el('exportMonthPdf')) el('exportMonthPdf').addEventListener('click', async (
 
     const [year, month] = selectedMonth.split('-');
     const monthName = new Date(`${selectedMonth}-01`).toLocaleString('id-ID', { month: 'long' });
-    const titleText = `Riwayat Peminjaman Barang — ${monthName} ${year}`;
+    
+    // Get school name from input field or use default
+    const schoolName = el('schoolName')?.value?.trim() || 'Nama Sekolah';
 
     const monthData = state.history.filter(h => {
       const date = new Date(h.date);
@@ -704,7 +707,7 @@ if (el('exportMonthPdf')) el('exportMonthPdf').addEventListener('click', async (
     // Show progress for PDF generation
     showProgress("Menyiapkan PDF...", 10);
 
-    // Group by borrower + item
+    // Group by borrower + item to avoid duplicates
     const grouped = {};
     monthData.forEach(h => {
       const key = (h.borrower || h.by || '') + "_" + h.itemName;
@@ -722,20 +725,27 @@ if (el('exportMonthPdf')) el('exportMonthPdf').addEventListener('click', async (
           returnSignPhoto: h.action === "returned" ? h.signPhoto : null
         };
       } else {
+        // Update existing entry with return data or borrow signature
         if (h.action === "returned") {
           grouped[key].tanggalKembali = h.date;
           grouped[key].jamKembali = h.time || grouped[key].jamKembali || "";
           grouped[key].status = "Dikembalikan";
-          grouped[key].returnSignPhoto = h.signPhoto;
+          // Only set return signature if not already set
+          if (!grouped[key].returnSignPhoto) {
+            grouped[key].returnSignPhoto = h.signPhoto;
+          }
         } else if (h.action === "borrowed") {
-          grouped[key].borrowSignPhoto = h.signPhoto;
+          // Only set borrow signature if not already set
+          if (!grouped[key].borrowSignPhoto) {
+            grouped[key].borrowSignPhoto = h.signPhoto;
+          }
         }
       }
     });
 
     showProgress("Mengambil gambar tanda tangan...", 30);
 
-    // Collect all signature photo IDs and fetch them
+    // Collect unique signature photo IDs
     const signatureIds = new Set();
     Object.values(grouped).forEach(item => {
       if (item.borrowSignPhoto) signatureIds.add(item.borrowSignPhoto);
@@ -772,16 +782,47 @@ if (el('exportMonthPdf')) el('exportMonthPdf').addEventListener('click', async (
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
 
-    // Title - centered
+    // Multi-line title - centered
     doc.setFontSize(16);
     doc.setFont(undefined, 'bold');
-    const titleWidth = doc.getTextWidth(titleText);
-    const titleX = (pageWidth - titleWidth) / 2;
-    doc.text(titleText, titleX, 20);
+    
+    // Title line 1: "Riwayat Peminjaman Barang"
+    const title1 = "Riwayat Peminjaman Barang";
+    const title1Width = doc.getTextWidth(title1);
+    const title1X = (pageWidth - title1Width) / 2;
+    doc.text(title1, title1X, 16);
+    
+    // Title line 2: School name
+    doc.setFontSize(16);
+    const title2Width = doc.getTextWidth(schoolName);
+    const title2X = (pageWidth - title2Width) / 2;
+    doc.text(schoolName, title2X, 24);
+    
+    // Title line 3: "Bulan [Month] [Year]"
+    const title3 = `Bulan ${monthName} ${year}`;
+    const title3Width = doc.getTextWidth(title3);
+    const title3X = (pageWidth - title3Width) / 2;
+    doc.text(title3, title3X, 32);
 
-    // Prepare data for autoTable
+    // Function to format date to dd-mm-yyyy
+    const formatDateForPDF = (dateStr) => {
+      if (!dateStr) return '';
+      try {
+        const date = new Date(dateStr);
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}-${month}-${year}`;
+      } catch (e) {
+        return dateStr; // fallback to original if parsing fails
+      }
+    };
+
+    // Prepare data for autoTable with row numbers
     const tableRows = [];
-    Object.values(grouped).forEach(item => {
+    const groupedValues = Object.values(grouped);
+    
+    groupedValues.forEach((item, index) => {
       // Convert signatures to images for the table
       const borrowSignImg = item.borrowSignPhoto && signatureDataUrls[item.borrowSignPhoto] ? 
         { content: '', styles: { halign: 'center' } } : '';
@@ -789,24 +830,26 @@ if (el('exportMonthPdf')) el('exportMonthPdf').addEventListener('click', async (
         { content: '', styles: { halign: 'center' } } : '';
 
       tableRows.push([
+        (index + 1).toString(), // Row number
         item.nama || '',
         item.barang || '',
-        item.tanggalPinjam || '',
+        formatDateForPDF(item.tanggalPinjam) || '', // Format date to dd-mm-yyyy
         item.jamPinjam || '',
         borrowSignImg,
-        item.tanggalPerkiraan || '',
-        item.tanggalKembali || '',
+        formatDateForPDF(item.tanggalPerkiraan) || '', // Format date to dd-mm-yyyy
+        formatDateForPDF(item.tanggalKembali) || '', // Format date to dd-mm-yyyy
         item.jamKembali || '',
         returnSignImg,
         item.status || ''
       ]);
     });
 
-    // Create the table with autoTable - let it spread evenly across the page
+    // Create the table with autoTable
     doc.autoTable({
-      startY: 30,
+      startY: 40, // Adjusted start position due to multi-line title
       margin: { left: 15, right: 15 }, // 15mm margins on left and right
       head: [[
+        'No', // Added row number column
         'Nama Peminjam', 
         'Nama Barang', 
         'Tgl Pinjam', 
@@ -820,30 +863,35 @@ if (el('exportMonthPdf')) el('exportMonthPdf').addEventListener('click', async (
       ]],
       body: tableRows,
       theme: 'grid',
-      tableWidth: 'auto', // Let table width adjust automatically
+      tableWidth: 'auto',
       headStyles: { 
-        fillColor: [108, 92, 231], 
-        textColor: 255, 
+        fillColor: 'gray', 
+        textColor: [255, 255, 255], // White text for header
         halign: 'center',
         fontSize: 10,
-        fontStyle: 'bold'
+        fontStyle: 'bold',
+        lineColor: [0, 0, 0], // Black lines for header
+        lineWidth: 0.2 // Same line width as body
       },
       bodyStyles: { 
-        fontSize: 9,
+        fontSize: 10,
         halign: 'center',
         cellPadding: 3,
-        lineColor: [200, 200, 200],
-        lineWidth: 0.1
+        lineColor: [0, 0, 0], // Black lines instead of gray
+        lineWidth: 0.2, // Slightly thicker lines
+        textColor: [0, 0, 0] // Black text instead of gray
       },
-      // Remove fixed columnStyles to allow even distribution
-      alternateRowStyles: { fillColor: [248, 248, 248] },
+      alternateRowStyles: { 
+        fillColor: [245, 245, 245],
+        textColor: [0, 0, 0] // Black text for alternate rows too
+      },
       didDrawCell: function (data) {
-        // Add signature images to TTD columns
-        if (data.column.index === 4 || data.column.index === 8) { // TTD columns
+        // Only add signature images to body rows (not header rows)
+        if (data.section === 'body' && (data.column.index === 5 || data.column.index === 9)) { // TTD columns (shifted due to No column)
           const rowIndex = data.row.index;
-          const item = Object.values(grouped)[rowIndex];
+          const item = groupedValues[rowIndex];
           
-          if (data.column.index === 4 && item.borrowSignPhoto && signatureDataUrls[item.borrowSignPhoto]) {
+          if (data.column.index === 5 && item && item.borrowSignPhoto && signatureDataUrls[item.borrowSignPhoto]) {
             // Add borrow signature
             try {
               const imgWidth = 18;
@@ -864,7 +912,7 @@ if (el('exportMonthPdf')) el('exportMonthPdf').addEventListener('click', async (
             }
           }
           
-          if (data.column.index === 8 && item.returnSignPhoto && signatureDataUrls[item.returnSignPhoto]) {
+          if (data.column.index === 9 && item && item.returnSignPhoto && signatureDataUrls[item.returnSignPhoto]) {
             // Add return signature
             try {
               const imgWidth = 18;
@@ -1090,26 +1138,24 @@ if(el('manageList')) el('manageList').addEventListener('click', (e)=>{
     return;
   }
 
-  if(action==='edit'){
-    // render inline edit form inside the card
-    const card = btn.closest('.card');
-    card.innerHTML = `
-      <div class="form">
-        <input class="input" id="editName" value="${escapeHtml(item.name)}" placeholder="Nama barang" />
-        <input class="input" id="editCategory" value="${escapeHtml(item.category||'')}" placeholder="Kategori" />
-        <input class="input" id="editDesc" value="${escapeHtml(item.desc||'')}" placeholder="Deskripsi" />
-        <select class="select" id="editStatus" disabled>
-          <option value="available" ${item.status==='available'?'selected':''}>Tersedia</option>
-          <option value="borrowed" ${item.status==='borrowed'?'selected':''}>Dipinjam</option>
-        </select>
-        <div class="actions">
-          <button class="btn primary" data-action="save-edit" data-id="${id}">Simpan</button>
-          <button class="btn ghost" data-action="cancel-edit" data-id="${id}">Batal</button>
-        </div>
+  // Updated edit form without status field - replace the edit action in manageList event listener
+
+if(action==='edit'){
+  // render inline edit form inside the card (without status field)
+  const card = btn.closest('.card');
+  card.innerHTML = `
+    <div class="form">
+      <input class="input" id="editName" value="${escapeHtml(item.name)}" placeholder="Nama barang" />
+      <input class="input" id="editCategory" value="${escapeHtml(item.category||'')}" placeholder="Kategori" />
+      <input class="input" id="editDesc" value="${escapeHtml(item.desc||'')}" placeholder="Deskripsi" />
+      <div class="actions">
+        <button class="btn primary" data-action="save-edit" data-id="${id}">Simpan</button>
+        <button class="btn ghost" data-action="cancel-edit" data-id="${id}">Batal</button>
       </div>
-    `;
-    return;
-  }
+    </div>
+  `;
+  return;
+}
 
   if(action==='save-edit'){
     const card = btn.closest('.card');
@@ -1294,3 +1340,60 @@ function showConfirm(message, onConfirm) {
   overlay.appendChild(box);
   document.body.appendChild(overlay);
 }
+
+// Save school name when it changes
+function saveSchoolName() {
+  try {
+    const schoolName = el('schoolName')?.value?.trim() || '';
+    localStorage.setItem('simisa_school_name', schoolName);
+  } catch (e) {
+    console.error('Failed to save school name', e);
+  }
+}
+
+// Load school name on startup
+function loadSchoolName() {
+  try {
+    const savedName = localStorage.getItem('simisa_school_name') || '';
+    if (el('schoolName')) {
+      el('schoolName').value = savedName;
+    }
+  } catch (e) {
+    console.error('Failed to load school name', e);
+  }
+}
+
+// Wire up the school name input field
+document.addEventListener('DOMContentLoaded', () => {
+  // Load school name when page loads
+  setTimeout(() => {
+    loadSchoolName();
+    
+    // Save school name when input changes
+    if (el('schoolName')) {
+      el('schoolName').addEventListener('input', throttle(saveSchoolName, 500));
+    }
+  }, 100);
+});
+
+// Manage tab filters event listeners
+document.querySelectorAll('#manage [data-filter]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    manageFilter = btn.dataset.filter;
+    // Update active state for manage filters only
+    document.querySelectorAll('#manage [data-filter]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderManage();
+  });
+});
+
+// Also need to set the initial active state for "Semua" button in manage tab
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    // Set initial active state for manage filters
+    const manageAllBtn = document.querySelector('#manage [data-filter="all"]');
+    if (manageAllBtn) {
+      manageAllBtn.classList.add('active');
+    }
+  }, 100);
+});
