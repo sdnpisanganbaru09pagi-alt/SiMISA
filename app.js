@@ -367,8 +367,8 @@ function openDB(){
 async function putPhoto(id, blob){ if(!db) await openDB(); return new Promise((resolve,reject)=>{ const tx = db.transaction(DB_STORE,'readwrite'); tx.objectStore(DB_STORE).put(blob, id); tx.oncomplete = ()=> resolve(id); tx.onerror = e=> reject(e); }); }
 async function getPhoto(id){ if(!db) await openDB(); return new Promise((resolve,reject)=>{ const tx = db.transaction(DB_STORE,'readonly'); const req = tx.objectStore(DB_STORE).get(id); req.onsuccess = ()=> resolve(req.result || null); req.onerror = e=> reject(e); }); }
 
-/* --- Photo caching with LRU and object URL management --- */
-const PHOTO_CACHE_LIMIT = 50;
+/* --- Photo caching with LRU and object URL management with device ram detection --- */
+const PHOTO_CACHE_LIMIT = (navigator.deviceMemory && navigator.deviceMemory > 4) ? 400 : 200;
 const photoCache = new Map(); // id -> Blob
 const urlCache = new Map();   // id -> objectURL
 
