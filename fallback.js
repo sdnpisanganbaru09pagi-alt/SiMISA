@@ -286,6 +286,17 @@ async function getSamsungDataUrlPhoto(id) {
   }
 }
 
+// Override processPhotoInput globally for all devices
+window.processPhotoInput = async function(file, previewEl) {
+  return await processPhotoInputWithFallback(file, previewEl);
+};
+
+// Also override getCachedPhoto globally
+const originalGetCachedPhoto = window.getCachedPhoto;
+window.getCachedPhoto = async function(id) {
+  return await getCachedPhotoWithFallback(id);
+};
+
 // Override the original photo input handlers for Samsung devices
 if (isSamsungDevice()) {
   console.log('Samsung device detected - applying photo fallbacks');
