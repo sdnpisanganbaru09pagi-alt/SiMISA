@@ -13,27 +13,25 @@
 }
 *{box-sizing:border-box}
 html,body{height:100%}
-body{
-  margin:0;
-  background: linear-gradient(180deg,#071024 0%, #0b1220 100%);
+body {
+  margin: 0;
+  background: #ffffff; /* atau bisa pakai gradient terang */
   color: #0b1220;
-  -webkit-font-smoothing:antialiased;
-  padding:12px;
-  display:flex;
-  justify-content:center;
-  align-items:flex-start;
-  font-size:15px;
-  line-height:1.35;
+  -webkit-font-smoothing: antialiased;
+  font-size: 15px;
+  line-height: 1.35;
+  padding: 0; /* hapus padding supaya full screen */
 }
+
 .app {
-  width:100%;
-  max-width:760px;
+  width: 100%;
+  min-height: 100vh; /* penuh tinggi layar */
   background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,0.94));
-  border-radius:18px;
-  overflow:hidden;
-  box-shadow: 0 12px 40px rgba(2,6,23,0.6);
-  margin-bottom:24px;
+  border-radius: 0; /* hilangkan sudut rounded kalau mau benar-benar full */
+  box-shadow: none; /* hilangkan shadow agar tidak ada efek floating */
+  margin: 0; /* hilangkan margin bawah */
 }
+
 
 /* bagian header */
 .header {
