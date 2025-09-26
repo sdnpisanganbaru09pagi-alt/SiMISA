@@ -1,414 +1,213 @@
-// Samsung Device Photo Fallback - Add this to fallback.js
+// Simple Samsung Device Photo Fallback - Add this to fallback.js
+// This provides gentle fallbacks without overriding existing functions
 
-/* Samsung Device Detection and Fallbacks */
+/* Samsung Device Detection */
 function isSamsungDevice() {
   const ua = navigator.userAgent.toLowerCase();
   return ua.includes('samsung') || 
          ua.includes('sm-') || 
          ua.includes('galaxy') ||
-         (ua.includes('android') && ua.includes('wv')); // Samsung Internet WebView
+         (ua.includes('android') && ua.includes('wv'));
 }
 
-function isSamsungBrowser() {
-  return navigator.userAgent.toLowerCase().includes('samsungbrowser');
-}
-
-// Enhanced photo processing with Samsung fallbacks
-async function processPhotoInputWithFallback(file, previewEl) {
-  if (!file) return null;
-  
+/* Enhanced dataURLtoBlob for Samsung devices */
+function samsungDataURLtoBlob(dataurl) {
   try {
-    // Samsung-specific handling
-    if (isSamsungDevice()) {
-      console.log('Samsung device detected, using fallback method');
-      return await processSamsungPhoto(file, previewEl);
-    }
-    
-    // Standard processing for other devices
-    return await processPhotoInput(file, previewEl);
-    
-  } catch (err) {
-    console.error('Photo processing failed, trying Samsung fallback:', err);
-    // Fallback to Samsung method even on non-Samsung devices if standard fails
-    return await processSamsungPhoto(file, previewEl);
+    const arr = dataurl.split(',');
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while(n--) u8arr[n] = bstr.charCodeAt(n);
+    return new Blob([u8arr], { type: mime });
+  } catch(e) {
+    console.error('samsungDataURLtoBlob failed', e);
+    return null;
   }
 }
 
-async function processSamsungPhoto(file, previewEl) {
-  try {
-    if (file.size > 10 * 1024 * 1024) {
-      showToast('Maks 10MB', 'warning');
-      return null;
-    }
-
-    // Method 1: Direct canvas approach (works better on Samsung)
-    const result = await processSamsungMethod1(file, previewEl);
-    if (result) return result;
-    
-    // Method 2: FileReader with delayed processing
-    console.log('Samsung Method 1 failed, trying Method 2');
-    return await processSamsungMethod2(file, previewEl);
-    
-  } catch (err) {
-    console.error('All Samsung photo methods failed:', err);
-    // Final fallback: store as data URL directly
-    return await processSamsungMethod3(file, previewEl);
-  }
-}
-
-// Samsung Method 1: Direct canvas with immediate processing
-async function processSamsungMethod1(file, previewEl) {
+/* Samsung-specific image resize */
+function samsungResizeImage(file, maxW, maxH) {
   return new Promise((resolve) => {
     const img = new Image();
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
+    const reader = new FileReader();
     
-    img.onload = async () => {
-      try {
-        // Calculate dimensions
-        let { width, height } = img;
-        const maxSize = 1024;
-        
-        if (width > maxSize || height > maxSize) {
-          const scale = Math.min(maxSize / width, maxSize / height);
-          width *= scale;
-          height *= scale;
+    reader.onload = e => {
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          let { width, height } = img;
+          if (width > maxW || height > maxH) {
+            const scale = Math.min(maxW / width, maxH / height);
+            width *= scale;
+            height *= scale;
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Samsung-specific quality settings
+          let quality = 0.8;
+          if (file.size > 5 * 1024 * 1024) quality = 0.5;
+          else if (file.size > 2 * 1024 * 1024) quality = 0.6;
+          
+          // Use setTimeout to help with Samsung timing issues
+          setTimeout(() => {
+            try {
+              const dataURL = canvas.toDataURL('image/jpeg', quality);
+              resolve(dataURL);
+            } catch (canvasErr) {
+              console.error('Samsung canvas toDataURL failed:', canvasErr);
+              resolve(null);
+            }
+          }, 50);
+          
+        } catch (err) {
+          console.error('Samsung image processing failed:', err);
+          resolve(null);
         }
-        
-        canvas.width = width;
-        canvas.height = height;
-        
-        // Draw image
-        ctx.drawImage(img, 0, 0, width, height);
-        
-        // Convert to blob with specific quality for Samsung
-        let quality = 0.8;
-        if (file.size > 5 * 1024 * 1024) quality = 0.5;
-        else if (file.size > 2 * 1024 * 1024) quality = 0.7;
-        
-        canvas.toBlob(async (blob) => {
-          if (!blob) {
-            resolve(null);
+      };
+      
+      img.onerror = () => {
+        console.error('Samsung image load failed');
+        resolve(null);
+      };
+      
+      img.src = e.target.result;
+    };
+    
+    reader.onerror = () => {
+      console.error('Samsung FileReader failed');
+      resolve(null);
+    };
+    
+    reader.readAsDataURL(file);
+  });
+}
+
+/* Monkey patch existing functions only if Samsung device detected */
+if (isSamsungDevice()) {
+  console.log('Samsung device detected - applying gentle photo patches');
+  
+  // Store original functions
+  const originalDataURLtoBlob = window.dataURLtoBlob;
+  const originalResizeImage = window.resizeImage;
+  
+  // Patch dataURLtoBlob with retry logic
+  window.dataURLtoBlob = function(dataurl) {
+    try {
+      const result = originalDataURLtoBlob ? originalDataURLtoBlob(dataurl) : samsungDataURLtoBlob(dataurl);
+      if (!result) {
+        // Samsung fallback
+        return samsungDataURLtoBlob(dataurl);
+      }
+      return result;
+    } catch (e) {
+      console.log('Using Samsung dataURLtoBlob fallback');
+      return samsungDataURLtoBlob(dataurl);
+    }
+  };
+  
+  // Patch resizeImage with Samsung-specific handling
+  window.resizeImage = function(file, maxW, maxH) {
+    return new Promise(async (resolve) => {
+      try {
+        // Try original method first
+        if (originalResizeImage) {
+          const result = await originalResizeImage(file, maxW, maxH);
+          if (result) {
+            resolve(result);
             return;
           }
-          
-          const photoId = 'photo_samsung_' + uid();
-          
-          try {
-            // Store in IndexedDB
-            await putPhoto(photoId, blob);
-            photoCache.set(photoId, blob);
-            
-            // Create preview
-            const url = getObjectURLFor(photoId, blob);
-            previewEl.innerHTML = `<img src="${url}" alt="preview" style="max-width:100%; height:auto;">`;
-            previewEl.hidden = false;
-            
-            if (typeof showToast === 'function') {
-              showToast('Foto Berhasil Disimpan (Samsung)', 'success');
-            }
-            
-            resolve(photoId);
-          } catch (storageErr) {
-            console.error('Samsung Method 1 storage failed:', storageErr);
-            resolve(null);
-          }
-        }, 'image/jpeg', quality);
-        
-      } catch (canvasErr) {
-        console.error('Samsung Method 1 canvas failed:', canvasErr);
-        resolve(null);
-      }
-    };
-    
-    img.onerror = () => {
-      console.error('Samsung Method 1 image load failed');
-      resolve(null);
-    };
-    
-    // Load image with Samsung-specific handling
-    if (file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        img.src = e.target.result;
-      };
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(file);
-    } else {
-      resolve(null);
-    }
-  });
-}
-
-// Samsung Method 2: FileReader with delayed processing and retry
-async function processSamsungMethod2(file, previewEl) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    
-    reader.onload = async (e) => {
-      try {
-        // Add delay for Samsung processing
-        await new Promise(r => setTimeout(r, 100));
-        
-        const dataUrl = e.target.result;
-        const photoId = 'photo_samsung2_' + uid();
-        
-        // Convert dataURL to blob
-        const blob = dataURLtoBlob(dataUrl);
-        if (!blob) {
-          resolve(null);
-          return;
         }
         
-        // Store with retry mechanism
-        let attempts = 3;
-        while (attempts > 0) {
-          try {
-            await putPhoto(photoId, blob);
-            photoCache.set(photoId, blob);
-            break;
-          } catch (err) {
-            attempts--;
-            if (attempts === 0) throw err;
-            await new Promise(r => setTimeout(r, 200));
-          }
-        }
-        
-        // Create preview
-        const url = getObjectURLFor(photoId, blob);
-        previewEl.innerHTML = `<img src="${url}" alt="preview" style="max-width:100%; height:auto;">`;
-        previewEl.hidden = false;
-        
-        if (typeof showToast === 'function') {
-          showToast('Foto Berhasil Disimpan (Samsung v2)', 'success');
-        }
-        
-        resolve(photoId);
+        // Samsung fallback
+        console.log('Using Samsung resize fallback');
+        const result = await samsungResizeImage(file, maxW || 1024, maxH || 1024);
+        resolve(result);
         
       } catch (err) {
-        console.error('Samsung Method 2 failed:', err);
-        resolve(null);
+        console.error('All resize methods failed:', err);
+        // Last resort: try Samsung method
+        const fallbackResult = await samsungResizeImage(file, maxW || 1024, maxH || 1024);
+        resolve(fallbackResult);
       }
-    };
-    
-    reader.onerror = () => {
-      console.error('Samsung Method 2 FileReader failed');
-      resolve(null);
-    };
-    
-    reader.readAsDataURL(file);
-  });
-}
-
-// Samsung Method 3: Final fallback - store as data URL directly
-async function processSamsungMethod3(file, previewEl) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    
-    reader.onload = async (e) => {
-      try {
-        const dataUrl = e.target.result;
-        const photoId = 'photo_dataurl_' + uid();
-        
-        // Store data URL directly as a special blob
-        const textBlob = new Blob([dataUrl], { type: 'text/plain' });
-        
-        await putPhoto(photoId, textBlob);
-        
-        // Create preview directly from data URL
-        previewEl.innerHTML = `<img src="${dataUrl}" alt="preview" style="max-width:100%; height:auto;">`;
-        previewEl.hidden = false;
-        
-        if (typeof showToast === 'function') {
-          showToast('Foto Berhasil Disimpan (Fallback)', 'success');
-        }
-        
-        resolve(photoId);
-        
-      } catch (err) {
-        console.error('Samsung Method 3 failed:', err);
-        resolve(null);
-      }
-    };
-    
-    reader.onerror = () => {
-      console.error('Samsung Method 3 FileReader failed');
-      resolve(null);
-    };
-    
-    reader.readAsDataURL(file);
-  });
-}
-
-// Enhanced photo retrieval with Samsung fallback
-async function getCachedPhotoWithFallback(id) {
-  if (!id) return null;
-  
-  try {
-    // Try standard method first
-    const standardResult = await getCachedPhoto(id);
-    if (standardResult) return standardResult;
-    
-    // Samsung fallback - handle data URL storage
-    if (id.includes('dataurl')) {
-      return await getSamsungDataUrlPhoto(id);
-    }
-    
-    return null;
-    
-  } catch (err) {
-    console.error('getCachedPhotoWithFallback failed:', err);
-    return null;
-  }
-}
-
-async function getSamsungDataUrlPhoto(id) {
-  try {
-    const textBlob = await getPhoto(id);
-    if (!textBlob) return null;
-    
-    const dataUrl = await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = () => resolve(null);
-      reader.readAsText(textBlob);
     });
-    
-    if (!dataUrl) return null;
-    
-    // Convert back to image blob
-    const response = await fetch(dataUrl);
-    return await response.blob();
-    
-  } catch (err) {
-    console.error('getSamsungDataUrlPhoto failed:', err);
-    return null;
-  }
-}
-
-// Override processPhotoInput globally for all devices
-window.processPhotoInput = async function(file, previewEl) {
-  return await processPhotoInputWithFallback(file, previewEl);
-};
-
-// Also override getCachedPhoto globally
-const originalGetCachedPhoto = window.getCachedPhoto;
-window.getCachedPhoto = async function(id) {
-  return await getCachedPhotoWithFallback(id);
-};
-
-// Override the original photo input handlers for Samsung devices
-if (isSamsungDevice()) {
-  console.log('Samsung device detected - applying photo fallbacks');
+  };
   
-  // Wait for DOM and override handlers
+  // Add Samsung-specific putPhoto retry
+  const originalPutPhoto = window.putPhoto;
+  window.putPhoto = async function(id, blob) {
+    let attempts = 3;
+    while (attempts > 0) {
+      try {
+        const result = await originalPutPhoto(id, blob);
+        return result;
+      } catch (err) {
+        attempts--;
+        if (attempts === 0) throw err;
+        console.log(`Samsung putPhoto retry, attempts left: ${attempts}`);
+        await new Promise(r => setTimeout(r, 200)); // Wait before retry
+      }
+    }
+  };
+  
+  // Samsung-specific UI feedback
   document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
-      // Override borrow photo handler
-      const borrowPhoto = document.getElementById('borrowPhoto');
-      if (borrowPhoto) {
-        // Remove existing listeners
-        const newBorrowPhoto = borrowPhoto.cloneNode(true);
-        borrowPhoto.parentNode.replaceChild(newBorrowPhoto, borrowPhoto);
-        
-        // Add new Samsung-compatible handler
-        newBorrowPhoto.addEventListener('change', async (e) => {
-          const photoId = await processPhotoInputWithFallback(e.target.files[0], document.getElementById('borrowPreview'));
-          e.target.dataset.photoId = photoId || '';
-          
-          // Scroll behavior (same as original)
-          const btn = document.querySelector('#borrowForm button[type="submit"]');
-          const img = document.getElementById('borrowPreview')?.querySelector('img');
-          const doScroll = () => {
-            if (btn) {
-              try {
-                btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              } catch (err) {
-                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-              }
-            }
-          };
-          if (img) {
-            if (img.complete) doScroll();
-            else {
-              img.addEventListener('load', doScroll, { once: true });
-              setTimeout(doScroll, 500);
-            }
-          } else {
-            setTimeout(doScroll, 200);
-          }
-        });
+      // Add Samsung device indicator
+      const header = document.querySelector('.header .subtitle');
+      if (header) {
+        header.textContent += ' (Samsung Mode)';
       }
       
-      // Override return photo handler
-      const returnPhoto = document.getElementById('returnPhoto');
-      if (returnPhoto) {
-        // Remove existing listeners
-        const newReturnPhoto = returnPhoto.cloneNode(true);
-        returnPhoto.parentNode.replaceChild(newReturnPhoto, returnPhoto);
-        
-        // Add new Samsung-compatible handler
-        newReturnPhoto.addEventListener('change', async (e) => {
-          const photoId = await processPhotoInputWithFallback(e.target.files[0], document.getElementById('returnPreview'));
-          e.target.dataset.photoId = photoId || '';
-          
-          // Scroll behavior (same as original)
-          const btn = document.querySelector('#returnForm button[type="submit"]');
-          const img = document.getElementById('returnPreview')?.querySelector('img');
-          const doScroll = () => {
-            if (btn) {
-              try {
-                btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              } catch (err) {
-                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-              }
-            }
-          };
-          if (img) {
-            if (img.complete) doScroll();
-            else {
-              img.addEventListener('load', doScroll, { once: true });
-              setTimeout(doScroll, 500);
-            }
-          } else {
-            setTimeout(doScroll, 200);
-          }
-        });
-      }
-      
-    }, 1000); // Wait a bit longer for Samsung devices
-  });
-}
-
-// Samsung-specific UI feedback
-if (isSamsungDevice()) {
-  // Show Samsung-specific instructions
-  document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => {
+      // Add helpful hints for Samsung users
       const borrowContainer = document.getElementById('borrowPhotoContainer');
       const returnContainer = document.getElementById('returnPhotoContainer');
       
       [borrowContainer, returnContainer].forEach(container => {
         if (container) {
-          const placeholder = container.querySelector('.upload-placeholder');
+          const placeholder = container.querySelector('.upload-placeholder small');
           if (placeholder) {
-            const samsungNote = document.createElement('div');
-            samsungNote.style.cssText = 'font-size:11px;color:#666;margin-top:4px;text-align:center;';
-            samsungNote.textContent = 'Samsung device: Jika foto tidak muncul, coba ambil ulang';
-            placeholder.appendChild(samsungNote);
+            placeholder.textContent = 'Ketuk untuk ambil foto (Samsung: tunggu sebentar setelah ambil foto)';
           }
         }
       });
-    }, 2000);
+    }, 1000);
   });
+  
+  // Override toast messages for Samsung feedback
+  const originalShowToast = window.showToast;
+  window.showToast = function(msg, type) {
+    if (msg === 'Foto Ditambahkan') {
+      originalShowToast('Foto Berhasil Disimpan (Samsung)', type || 'success');
+    } else {
+      originalShowToast(msg, type);
+    }
+  };
 }
 
-// Debug logging for Samsung devices
+// Samsung-specific error handling improvements
 if (isSamsungDevice()) {
+  // Catch unhandled photo-related errors
+  window.addEventListener('error', function(e) {
+    if (e.message && (e.message.includes('canvas') || e.message.includes('blob') || e.message.includes('IndexedDB'))) {
+      console.error('Samsung photo error caught:', e.message);
+      // Show user-friendly message
+      if (typeof showToast === 'function') {
+        showToast('Foto gagal diproses, coba ambil ulang', 'warning');
+      }
+    }
+  });
+  
+  // Additional Samsung debugging
   console.log('Samsung device info:', {
-    userAgent: navigator.userAgent,
-    isSamsungBrowser: isSamsungBrowser(),
-    deviceMemory: navigator.deviceMemory,
-    connection: navigator.connection?.effectiveType
+    userAgent: navigator.userAgent.substring(0, 100) + '...',
+    deviceMemory: navigator.deviceMemory || 'unknown',
+    hardwareConcurrency: navigator.hardwareConcurrency || 'unknown'
   });
 }
