@@ -1317,6 +1317,21 @@ monthData.forEach(h => {
       }
     });
 
+	// Tambahkan bagian tanda tangan kepala sekolah di bawah tabel
+	const y = doc.lastAutoTable.finalY + 20; // posisi vertikal setelah tabel
+	const headmasterName = el('headmasterName')?.value?.trim() || 'Nama Kepala Sekolah';
+	const headmasterNIP = el('headmasterNIP')?.value?.trim() || '';
+
+	doc.setFontSize(12);
+const x = 200; // <-- geser kanan
+doc.text('Mengetahui,', x, y);
+doc.text('Kepala Sekolah', x, y + 8);
+
+doc.text('_________________________', x, y + 40);
+doc.text(headmasterName, x, y + 50);
+if (headmasterNIP) doc.text(`NIP. ${headmasterNIP}`, x, y + 58);
+
+	
     // Add footer with generation timestamp - centered
     doc.setFontSize(8);
     doc.setTextColor(128, 128, 128);
@@ -1722,37 +1737,55 @@ function showConfirm(message, onConfirm) {
   document.body.appendChild(overlay);
 }
 
-// Save school name when it changes
-function saveSchoolName() {
+// Save school data when it changes
+function saveSchoolData() {
   try {
     const schoolName = el('schoolName')?.value?.trim() || '';
+    const headmasterName = el('headmasterName')?.value?.trim() || '';
+    const headmasterNIP = el('headmasterNIP')?.value?.trim() || '';
     localStorage.setItem('simisa_school_name', schoolName);
+    localStorage.setItem('simisa_headmaster_name', headmasterName);
+    localStorage.setItem('simisa_headmaster_nip', headmasterNIP);
   } catch (e) {
-    console.error('Failed to save school name', e);
+    console.error('Failed to save school data', e);
   }
 }
 
-// Load school name on startup
-function loadSchoolName() {
+// Load school data on startup
+function loadSchoolData() {
   try {
     const savedName = localStorage.getItem('simisa_school_name') || '';
+    const savedHeadmaster = localStorage.getItem('simisa_headmaster_name') || '';
+    const savedNIP = localStorage.getItem('simisa_headmaster_nip') || '';
     if (el('schoolName')) {
       el('schoolName').value = savedName;
     }
+    if (el('headmasterName')) {
+      el('headmasterName').value = savedHeadmaster;
+    }
+    if (el('headmasterNIP')) {
+      el('headmasterNIP').value = savedNIP;
+    }
   } catch (e) {
-    console.error('Failed to load school name', e);
+    console.error('Failed to load school data', e);
   }
 }
 
-// Wire up the school name input field
+// Wire up the school data input fields
 document.addEventListener('DOMContentLoaded', () => {
-  // Load school name when page loads
+  // Load school data when page loads
   setTimeout(() => {
-    loadSchoolName();
+    loadSchoolData();
     
-    // Save school name when input changes
+    // Save school data when inputs change
     if (el('schoolName')) {
-      el('schoolName').addEventListener('input', throttle(saveSchoolName, 500));
+      el('schoolName').addEventListener('input', throttle(saveSchoolData, 500));
+    }
+    if (el('headmasterName')) {
+      el('headmasterName').addEventListener('input', throttle(saveSchoolData, 500));
+    }
+    if (el('headmasterNIP')) {
+      el('headmasterNIP').addEventListener('input', throttle(saveSchoolData, 500));
     }
   }, 100);
 });
