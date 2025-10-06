@@ -1317,19 +1317,29 @@ monthData.forEach(h => {
       }
     });
 
-	// Tambahkan bagian tanda tangan kepala sekolah di bawah tabel
-	const y = doc.lastAutoTable.finalY + 20; // posisi vertikal setelah tabel
+	// === Signature block (auto-adjusts position safely) ===
 	const headmasterName = el('headmasterName')?.value?.trim() || 'Nama Kepala Sekolah';
 	const headmasterNIP = el('headmasterNIP')?.value?.trim() || '';
 
 	doc.setFontSize(12);
-const x = 200; // <-- geser kanan
+	const pdfPageHeight = doc.internal.pageSize.height;
+	const rightMargin = 30; // space from right edge
+	let y = doc.lastAutoTable.finalY + 30;
+
+	// If the signature would be off the page, move it to the next page
+	if (y + 60 > pdfPageHeight) {
+	doc.addPage();
+	y = 30;
+}
+
+const x = doc.internal.pageSize.width - rightMargin - 80;
+
 doc.text('Mengetahui,', x, y);
 doc.text('Kepala Sekolah', x, y + 8);
-
 doc.text('_________________________', x, y + 40);
 doc.text(headmasterName, x, y + 50);
 if (headmasterNIP) doc.text(`NIP. ${headmasterNIP}`, x, y + 58);
+
 
 	
     // Add footer with generation timestamp - centered
