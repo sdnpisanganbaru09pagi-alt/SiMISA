@@ -493,6 +493,10 @@ function showView(id) {
     renderManage();
   }
 
+if (id === 'history') {
+  renderHistoryList();
+}
+
   lastView = id;
 }
 
@@ -1028,7 +1032,14 @@ if(el('returnPhoto')) el('returnPhoto').addEventListener('change', async e => {
 });
 
 /* history month */
-/* Updated PDF Export with improvements */
+
+// Event: ubah bulan pada tab Riwayat
+if (el('historyMonth')) {
+  el('historyMonth').addEventListener('change', () => {
+    renderHistoryList();
+  });
+}
+/* Updated PDF Export */
 if (el('exportMonthPdf')) el('exportMonthPdf').addEventListener('click', async () => {
   try {
     const selectedMonth = el('historyMonth').value;
