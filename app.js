@@ -748,106 +748,44 @@ function renderManage(highlightId=null){
   wrap.appendChild(frag);
 }
 
-// helper: dataURL → Blob (kept for signature pad which uses canvas.toDataURL)
+/* Photo processing (fixed preview bug) */
+function resizeImage(file, maxW, maxH){ return new Promise((resolve)=>{ const img = new Image(); const reader = new FileReader(); reader.onload = e=>{ img.onload = ()=>{ const canvas = document.createElement('canvas'); let { width, height } = img; if (width > maxW || height > maxH){ const scale = Math.min(maxW / width, maxH / height); width *= scale; height *= scale; } canvas.width = width; canvas.height = height; canvas.getContext('2d').drawImage(img, 0, 0, width, height); let quality = 0.8; if (file.size > 2 * 1024 * 1024) quality = 0.6; else if (file.size > 1 * 1024 * 1024) quality = 0.7; resolve(canvas.toDataURL('image/webp', quality)); }; img.onerror = ()=> resolve(null); img.src = e.target.result; }; reader.onerror = ()=> resolve(null); reader.readAsDataURL(file); }); }
+
+// helper: convert dataURL to Blob
 function dataURLtoBlob(dataurl) {
-  try {
-    const [header, data] = dataurl.split(',');
-    const mime = header.match(/:(.*?);/)[1];
-    const bstr = atob(data);
-    const u8arr = new Uint8Array(bstr.length);
-    for (let i = 0; i < bstr.length; i++) u8arr[i] = bstr.charCodeAt(i);
+  try{
+    const arr = dataurl.split(',');
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/webp';
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while(n--) u8arr[n] = bstr.charCodeAt(n);
     return new Blob([u8arr], { type: mime });
-  } catch (e) { console.error('dataURLtoBlob failed', e); return null; }
-}
-
-/* Photo processing — optimised pipeline
-   Strategy:
-   1. createImageBitmap() — native decode, no FileReader/Image dance (much faster)
-   2. canvas.toBlob()      — direct Blob output, skips base64 round-trip entirely
-   3. Two-pass quality     — try 0.82 first; if still >400 KB retry at 0.65
-   4. Falls back gracefully to the old FileReader path on browsers that lack
-      createImageBitmap (very rare in 2024+). */
-
-async function _resizeToBlobFast(file, maxW, maxH) {
-  // --- fast path: createImageBitmap (Chrome / Firefox / Safari 15+) ---
-  let bitmap;
-  try { bitmap = await createImageBitmap(file); } catch(e) { bitmap = null; }
-
-  if (bitmap) {
-    let { width: w, height: h } = bitmap;
-    if (w > maxW || h > maxH) {
-      const scale = Math.min(maxW / w, maxH / h);
-      w = Math.round(w * scale);
-      h = Math.round(h * scale);
-    }
-    const canvas = document.createElement('canvas');
-    canvas.width = w; canvas.height = h;
-    canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
-    bitmap.close(); // release GPU memory immediately
-
-    // determine quality based on original file size
-    let quality = 0.82;
-    if (file.size > 2 * 1024 * 1024) quality = 0.65;
-    else if (file.size > 1 * 1024 * 1024) quality = 0.72;
-
-    // toBlob — no base64 round-trip
-    const blob = await new Promise(res => canvas.toBlob(res, 'image/webp', quality));
-    if (!blob) return null;
-
-    // two-pass: if still large, re-compress at lower quality
-    if (blob.size > 400 * 1024 && quality > 0.5) {
-      const blob2 = await new Promise(res => canvas.toBlob(res, 'image/webp', 0.5));
-      return blob2 || blob;
-    }
-    return blob;
+  }catch(e){
+    console.error('dataURLtoBlob failed', e);
+    return null;
   }
-
-  // --- slow fallback: FileReader + Image (old Safari / WebView) ---
-  return new Promise(resolve => {
-    const reader = new FileReader();
-    reader.onerror = () => resolve(null);
-    reader.onload = e => {
-      const img = new Image();
-      img.onerror = () => resolve(null);
-      img.onload = () => {
-        let { width: w, height: h } = img;
-        if (w > maxW || h > maxH) {
-          const scale = Math.min(maxW / w, maxH / h);
-          w = Math.round(w * scale); h = Math.round(h * scale);
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = h;
-        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        let quality = 0.82;
-        if (file.size > 2 * 1024 * 1024) quality = 0.65;
-        else if (file.size > 1 * 1024 * 1024) quality = 0.72;
-        canvas.toBlob(blob => resolve(blob || null), 'image/webp', quality);
-      };
-      img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
-  });
 }
 
 async function processPhotoInput(file, previewEl) {
-  try {
+  try{
     if (!file) return null;
-    if (file.size > 10 * 1024 * 1024) { showToast('Maks 10MB', 'warning'); return null; }
-
-    const blob = await _resizeToBlobFast(file, 1024, 1024);
-    if (!blob) return null;
-
+    if (file.size > 10 * 1024 * 1024) { showToast('Maks 10MB','warning'); return null; }
+    const resizedData = await resizeImage(file, 1024, 1024);
+    if(!resizedData) return null;
+    const blob = dataURLtoBlob(resizedData);
     const photoId = 'photo_' + uid();
     await putPhoto(photoId, blob);
     photoCache.set(photoId, blob);
-    _ensureCacheLimit();
-
     const url = getObjectURLFor(photoId, blob);
     previewEl.innerHTML = `<img src="${url}" alt="preview">`;
+    if (typeof showToast === 'function') { showToast('Foto Ditambahkan', 'success'); }
     previewEl.hidden = false;
-    if (typeof showToast === 'function') showToast('Foto Ditambahkan', 'success');
+    _ensureCacheLimit();
     return photoId;
-  } catch (err) {
+  }
+  catch(err){
     console.error('processPhotoInput failed', err);
     return null;
   }
@@ -915,11 +853,11 @@ function injectSignatureUI(formId, canvasId, clearBtnId) {
   wrapper.style.margin = '8px 0';
   wrapper.innerHTML = `
     <label style="display:block;margin-bottom:6px;font-weight:600;">Tanda Tangan (wajib):</label>
-    <div style="display:flex;gap:8px;align-items:center;">
-      <canvas id="${canvasId}" width="200" height="120" style="border:1px solid #ddd;border-radius:6px;background:white;"></canvas>
-      <div style="display:flex;flex-direction:column;gap:6px;">
+    <div class="sig-row">
+      <canvas id="${canvasId}" width="200" height="120"></canvas>
+      <div class="sig-controls">
         <button type="button" id="${clearBtnId}" class="btn ghost" style="height:36px;padding:6px 10px;">Hapus Tanda Tangan</button>
-        <div style="font-size:11px;color:#666;max-width:140px">Gunakan jari atau stylus untuk menandatangani. Tanda tangan wajib sebelum submit.</div>
+        <div style="font-size:11px;color:#666;">Gunakan jari atau stylus untuk menandatangani. Tanda tangan wajib sebelum submit.</div>
       </div>
     </div>
   `;
