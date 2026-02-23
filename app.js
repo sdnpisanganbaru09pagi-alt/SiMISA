@@ -748,44 +748,106 @@ function renderManage(highlightId=null){
   wrap.appendChild(frag);
 }
 
-/* Photo processing (fixed preview bug) */
-function resizeImage(file, maxW, maxH){ return new Promise((resolve)=>{ const img = new Image(); const reader = new FileReader(); reader.onload = e=>{ img.onload = ()=>{ const canvas = document.createElement('canvas'); let { width, height } = img; if (width > maxW || height > maxH){ const scale = Math.min(maxW / width, maxH / height); width *= scale; height *= scale; } canvas.width = width; canvas.height = height; canvas.getContext('2d').drawImage(img, 0, 0, width, height); let quality = 0.8; if (file.size > 2 * 1024 * 1024) quality = 0.6; else if (file.size > 1 * 1024 * 1024) quality = 0.7; resolve(canvas.toDataURL('image/webp', quality)); }; img.onerror = ()=> resolve(null); img.src = e.target.result; }; reader.onerror = ()=> resolve(null); reader.readAsDataURL(file); }); }
-
-// helper: convert dataURL to Blob
+// helper: dataURL → Blob (kept for signature pad which uses canvas.toDataURL)
 function dataURLtoBlob(dataurl) {
-  try{
-    const arr = dataurl.split(',');
-    const mimeMatch = arr[0].match(/:(.*?);/);
-    const mime = mimeMatch ? mimeMatch[1] : 'image/webp';
-    const bstr = atob(arr[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    while(n--) u8arr[n] = bstr.charCodeAt(n);
+  try {
+    const [header, data] = dataurl.split(',');
+    const mime = header.match(/:(.*?);/)[1];
+    const bstr = atob(data);
+    const u8arr = new Uint8Array(bstr.length);
+    for (let i = 0; i < bstr.length; i++) u8arr[i] = bstr.charCodeAt(i);
     return new Blob([u8arr], { type: mime });
-  }catch(e){
-    console.error('dataURLtoBlob failed', e);
-    return null;
+  } catch (e) { console.error('dataURLtoBlob failed', e); return null; }
+}
+
+/* Photo processing — optimised pipeline
+   Strategy:
+   1. createImageBitmap() — native decode, no FileReader/Image dance (much faster)
+   2. canvas.toBlob()      — direct Blob output, skips base64 round-trip entirely
+   3. Two-pass quality     — try 0.82 first; if still >400 KB retry at 0.65
+   4. Falls back gracefully to the old FileReader path on browsers that lack
+      createImageBitmap (very rare in 2024+). */
+
+async function _resizeToBlobFast(file, maxW, maxH) {
+  // --- fast path: createImageBitmap (Chrome / Firefox / Safari 15+) ---
+  let bitmap;
+  try { bitmap = await createImageBitmap(file); } catch(e) { bitmap = null; }
+
+  if (bitmap) {
+    let { width: w, height: h } = bitmap;
+    if (w > maxW || h > maxH) {
+      const scale = Math.min(maxW / w, maxH / h);
+      w = Math.round(w * scale);
+      h = Math.round(h * scale);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
+    bitmap.close(); // release GPU memory immediately
+
+    // determine quality based on original file size
+    let quality = 0.82;
+    if (file.size > 2 * 1024 * 1024) quality = 0.65;
+    else if (file.size > 1 * 1024 * 1024) quality = 0.72;
+
+    // toBlob — no base64 round-trip
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/webp', quality));
+    if (!blob) return null;
+
+    // two-pass: if still large, re-compress at lower quality
+    if (blob.size > 400 * 1024 && quality > 0.5) {
+      const blob2 = await new Promise(res => canvas.toBlob(res, 'image/webp', 0.5));
+      return blob2 || blob;
+    }
+    return blob;
   }
+
+  // --- slow fallback: FileReader + Image (old Safari / WebView) ---
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onerror = () => resolve(null);
+    reader.onload = e => {
+      const img = new Image();
+      img.onerror = () => resolve(null);
+      img.onload = () => {
+        let { width: w, height: h } = img;
+        if (w > maxW || h > maxH) {
+          const scale = Math.min(maxW / w, maxH / h);
+          w = Math.round(w * scale); h = Math.round(h * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        let quality = 0.82;
+        if (file.size > 2 * 1024 * 1024) quality = 0.65;
+        else if (file.size > 1 * 1024 * 1024) quality = 0.72;
+        canvas.toBlob(blob => resolve(blob || null), 'image/webp', quality);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 async function processPhotoInput(file, previewEl) {
-  try{
+  try {
     if (!file) return null;
-    if (file.size > 10 * 1024 * 1024) { showToast('Maks 10MB','warning'); return null; }
-    const resizedData = await resizeImage(file, 1024, 1024);
-    if(!resizedData) return null;
-    const blob = dataURLtoBlob(resizedData);
+    if (file.size > 10 * 1024 * 1024) { showToast('Maks 10MB', 'warning'); return null; }
+
+    const blob = await _resizeToBlobFast(file, 1024, 1024);
+    if (!blob) return null;
+
     const photoId = 'photo_' + uid();
     await putPhoto(photoId, blob);
     photoCache.set(photoId, blob);
+    _ensureCacheLimit();
+
     const url = getObjectURLFor(photoId, blob);
     previewEl.innerHTML = `<img src="${url}" alt="preview">`;
-    if (typeof showToast === 'function') { showToast('Foto Ditambahkan', 'success'); }
     previewEl.hidden = false;
-    _ensureCacheLimit();
+    if (typeof showToast === 'function') showToast('Foto Ditambahkan', 'success');
     return photoId;
-  }
-  catch(err){
+  } catch (err) {
     console.error('processPhotoInput failed', err);
     return null;
   }
@@ -1599,14 +1661,50 @@ function openImageModal(src){
   document.body.appendChild(modal); 
 }
 
-function showToast(msg, type = "info") {
-  const styles = { info: { bg: "linear-gradient(90deg, var(--accent-1), var(--accent-2))", icon: "ℹ️" }, success: { bg: "linear-gradient(90deg, var(--success), #34d399)", icon: "✅" }, warning: { bg: "linear-gradient(90deg, var(--warning), #f97316)", icon: "⚠️" }, danger: { bg: "linear-gradient(90deg, var(--danger), #b91c1c)", icon: "❌" } };
-  const t = document.createElement("div");
-  t.innerHTML = `<span style="margin-right:8px">${styles[type]?.icon || styles.info.icon}</span>${msg}`;
-  t.style.cssText = `position: fixed; left: 50%; transform: translateX(-50%) translateY(20px); bottom: 24px; background: ${styles[type]?.bg || styles.info.bg}; color: white; padding: 12px 18px; border-radius: 999px; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; box-shadow: 0 6px 18px rgba(0,0,0,0.25); z-index: 9999; opacity: 0; transition: all 0.35s ease; letter-spacing: 0.3px;`;
-  document.body.appendChild(t);
-  requestAnimationFrame(() => { t.style.opacity = 1; t.style.transform = "translateX(-50%) translateY(0)"; });
-  setTimeout(() => { t.style.opacity = 0; t.style.transform = "translateX(-50%) translateY(20px)"; setTimeout(() => t.remove(), 5000); }, 2000);
+/* ── SiMERY-style notification toast ── */
+const _toastIcons = {
+  info:    { icon:'ℹ️', cls:'info' },
+  success: { icon:'✅', cls:'success' },
+  warning: { icon:'⚠️', cls:'warning' },
+  danger:  { icon:'❌', cls:'error' },
+  error:   { icon:'❌', cls:'error' },
+};
+let _toastQueue = [];
+let _toastActive = false;
+
+function showToast(msg, type = 'info') {
+  _toastQueue.push({ msg, type });
+  if (!_toastActive) _processToastQueue();
+}
+
+function _processToastQueue() {
+  if (_toastQueue.length === 0) { _toastActive = false; return; }
+  _toastActive = true;
+  const { msg, type } = _toastQueue.shift();
+
+  // Remove any existing toast
+  document.querySelectorAll('.notification').forEach(n => n.remove());
+
+  const cfg = _toastIcons[type] || _toastIcons.info;
+  const el = document.createElement('div');
+  el.className = 'notification ' + cfg.cls;
+  el.innerHTML = `
+    <div class="notification-content">
+      <div class="notification-icon">${cfg.icon}</div>
+      <div class="notification-text">
+        <div class="notification-title">${msg}</div>
+      </div>
+      <button class="notification-close" aria-label="Tutup">×</button>
+    </div>`;
+  document.body.appendChild(el);
+
+  const close = el.querySelector('.notification-close');
+  const dismiss = () => {
+    el.classList.add('hiding');
+    setTimeout(() => { el.remove(); setTimeout(_processToastQueue, 180); }, 240);
+  };
+  close.addEventListener('click', dismiss);
+  setTimeout(dismiss, 3000);
 }
 
 /* throttle util */
@@ -1721,41 +1819,45 @@ function hideProgress() {
 // expose some helpers for debugging in console if needed
 window.simisaHelpers = { clearPhotoCache, getCachedPhoto };
 
-/* Confirmation Modal */
+/* Confirmation Modal — SiMERY style */
 function showConfirm(message, onConfirm) {
   const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:10000;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(7,89,133,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;padding:16px;backdrop-filter:blur(6px);';
 
   const box = document.createElement('div');
-  box.style.cssText = 'background:#fff;padding:20px;border-radius:12px;max-width:320px;width:90%;text-align:center;box-shadow:0 6px 18px rgba(0,0,0,0.3);';
+  box.style.cssText = 'background:#fff;padding:24px;border-radius:20px;max-width:320px;width:100%;text-align:center;box-shadow:0 16px 48px rgba(14,165,233,0.2);';
+
+  const icon = document.createElement('div');
+  icon.style.cssText = 'width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#fef2f2,#fee2e2);border:2px solid #fecaca;display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 16px;';
+  icon.textContent = '⚠️';
 
   const msg = document.createElement('div');
   msg.textContent = message;
-  msg.style.marginBottom = '16px';
+  msg.style.cssText = 'margin-bottom:20px;font-weight:600;color:#0f172a;line-height:1.5;font-size:14px;';
 
   const actions = document.createElement('div');
-  actions.style.display = 'flex';
-  actions.style.justifyContent = 'space-around';
+  actions.style.cssText = 'display:flex;gap:10px;';
 
   const yesBtn = document.createElement('button');
   yesBtn.className = 'btn danger';
-  yesBtn.textContent = 'Ya';
-  yesBtn.onclick = () => {
-    overlay.remove();
-    if (typeof onConfirm === 'function') onConfirm();
-  };
+  yesBtn.style.flex = '1';
+  yesBtn.textContent = 'Ya, Hapus';
+  yesBtn.onclick = () => { overlay.remove(); if (typeof onConfirm === 'function') onConfirm(); };
 
   const noBtn = document.createElement('button');
   noBtn.className = 'btn ghost';
+  noBtn.style.flex = '1';
   noBtn.textContent = 'Batal';
   noBtn.onclick = () => overlay.remove();
 
-  actions.appendChild(yesBtn);
   actions.appendChild(noBtn);
+  actions.appendChild(yesBtn);
+  box.appendChild(icon);
   box.appendChild(msg);
   box.appendChild(actions);
   overlay.appendChild(box);
   document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 }
 
 // Save school data when it changes
