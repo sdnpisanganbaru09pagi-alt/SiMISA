@@ -988,6 +988,28 @@ document.addEventListener('DOMContentLoaded', () => {
       else closeReturnModal();
     });
   });
+
+  // swipe-down drag handle to close
+  function _wireSwipeClose(handleId, closeFn) {
+    const handle = el(handleId);
+    if (!handle) return;
+    let startY = 0, startTime = 0;
+
+    handle.addEventListener('touchstart', e => {
+      startY    = e.touches[0].clientY;
+      startTime = Date.now();
+    }, { passive: true });
+
+    handle.addEventListener('touchend', e => {
+      const dy       = e.changedTouches[0].clientY - startY;
+      const elapsed  = Date.now() - startTime;
+      // swipe down ≥ 48px dalam ≤ 400ms → tutup
+      if (dy >= 48 && elapsed <= 400) closeFn();
+    }, { passive: true });
+  }
+
+  _wireSwipeClose('borrowDragHandle', closeBorrowModal);
+  _wireSwipeClose('returnDragHandle', closeReturnModal);
 });
 
 /* -------------------- end signature helpers -------------------- */

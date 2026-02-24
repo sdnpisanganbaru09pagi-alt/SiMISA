@@ -93,15 +93,17 @@ input,select,textarea{transition:all 0.2s ease}
 }
 
 /* ── Header ── */
-@keyframes gradShift{
-  0%  {background-position:0% 50%}
-  50% {background-position:100% 50%}
-  100%{background-position:0% 50%}
+@property --hc1{syntax:'<color>';inherits:false;initial-value:#0ea5e9}
+@property --hc2{syntax:'<color>';inherits:false;initial-value:#06b6d4}
+@property --hc3{syntax:'<color>';inherits:false;initial-value:#8b5cf6}
+@keyframes colorFlow{
+  0%  {--hc1:#0ea5e9;--hc2:#06b6d4;--hc3:#8b5cf6}
+  50% {--hc1:#8b5cf6;--hc2:#0ea5e9;--hc3:#06b6d4}
+  100%{--hc1:#06b6d4;--hc2:#8b5cf6;--hc3:#0ea5e9}
 }
 .header{
-  background:linear-gradient(135deg,var(--accent-1),var(--accent-2),var(--accent-3),var(--accent-1));
-  background-size:300% 300%;
-  animation:gradShift 8s ease infinite;
+  background:linear-gradient(135deg,var(--hc1) 0%,var(--hc2) 50%,var(--hc3) 100%);
+  animation:colorFlow 6s ease-in-out infinite alternate;
   padding:16px;
   display:flex;align-items:center;gap:12px;
   position:sticky;top:0;z-index:100;
@@ -134,7 +136,7 @@ input,select,textarea{transition:all 0.2s ease}
 }
 
 /* ── Main ── */
-.main{padding:16px;flex:1;background:transparent;min-width:0;overflow-x:hidden}
+.main{padding:16px;flex:1;background:transparent}
 
 /* ── Tabs ── */
 .tabs{
@@ -160,8 +162,8 @@ input,select,textarea{transition:all 0.2s ease}
   width:18px;height:18px;
 }
 .tab-label{
-  font-size:8.5px;font-weight:700;line-height:1.2;
-  white-space:normal;word-break:keep-all;overflow-wrap:normal;
+  font-size:9.5px;font-weight:700;line-height:1.3;
+  white-space:normal;
   width:100%;text-align:center;
   text-transform:uppercase;letter-spacing:0.01em;
 }
@@ -174,7 +176,7 @@ input,select,textarea{transition:all 0.2s ease}
 .tab:not(.active):hover{background:var(--blue-light);color:var(--blue-dark)}
 
 /* ── View transitions ── */
-.view{opacity:1;transition:opacity 0.25s ease;min-width:0;overflow-x:hidden}
+.view{opacity:1;transition:opacity 0.25s ease}
 .view.fade-in{animation:fadeIn 0.3s ease forwards}
 @keyframes fadeIn{
   from{opacity:0;transform:translateY(6px)}
@@ -213,6 +215,8 @@ input,select,textarea{transition:all 0.2s ease}
   border-radius:var(--radius);padding:11px 18px;border:none;
   cursor:pointer;font-family:inherit;font-size:13px;font-weight:700;
   transition:all 0.2s ease;text-decoration:none;white-space:nowrap;letter-spacing:0.01em;
+  -webkit-tap-highlight-color:transparent;
+  outline:none;
 }
 .btn:hover{transform:translateY(-2px);box-shadow:0 4px 14px rgba(0,0,0,0.12)}
 .btn:active{transform:translateY(0);opacity:0.9}
@@ -235,26 +239,25 @@ input,select,textarea{transition:all 0.2s ease}
 .btn.active{background:linear-gradient(135deg,var(--accent-1),var(--accent-2));color:#fff;box-shadow:0 4px 12px rgba(14,165,233,0.3)}
 
 /* ── Filter chips ── */
-.actions.chips{
-  display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;
-  justify-content:center;align-items:center;
-}
-.actions.chips .btn{
-  flex:1;min-width:0;max-width:120px;
-  padding:7px 12px;border-radius:20px;
+.actions.chips{gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.actions.chips .btn.ghost{
+  padding:9px 16px;border-radius:20px;
   border:1.5px solid rgba(14,165,233,0.18);
-  font-size:12px;font-weight:600;
-  text-align:center;white-space:nowrap;
-  background:#fff;color:var(--muted);
+  font-size:13px;font-weight:600;
+  min-height:38px;
+  -webkit-tap-highlight-color:transparent;
+  outline:none;
+  overflow:hidden;
 }
-.actions.chips .btn:hover{
-  border-color:var(--accent-1);color:var(--accent-1);
-  background:var(--blue-light);transform:translateY(-1px);
-}
+.actions.chips .btn.ghost:hover{border-color:var(--accent-1);color:var(--accent-1);background:var(--blue-light)}
+.actions.chips .btn.ghost:focus-visible{box-shadow:0 0 0 2px var(--accent-1)}
 .actions.chips .btn.active{
   background:linear-gradient(135deg,var(--accent-1),var(--accent-2));
   color:#fff;border-color:transparent;
   box-shadow:0 2px 8px rgba(14,165,233,0.3);
+  -webkit-tap-highlight-color:transparent;
+  outline:none;
+  overflow:hidden;
 }
 
 /* ── Cards ── */
@@ -288,8 +291,6 @@ input,select,textarea{transition:all 0.2s ease}
   background:#ffffff;border:1.5px solid var(--border);
   border-radius:var(--radius-lg);padding:18px;
   box-shadow:var(--shadow-sm);margin-bottom:16px;
-  overflow:hidden;
-  min-width:0;
 }
 .section-title{
   font-weight:800;font-size:1rem;color:var(--blue-dark);
@@ -297,7 +298,7 @@ input,select,textarea{transition:all 0.2s ease}
 }
 
 /* ── Forms ── */
-.form{display:grid;gap:16px;min-width:0}
+.form{display:grid;gap:16px}
 .form label,.config-label{
   display:block;font-size:0.82rem;color:var(--muted);
   font-weight:700;letter-spacing:0.02em;margin-bottom:4px;
@@ -324,7 +325,6 @@ select option{background:#fff;color:var(--text)}
   border:2px dashed rgba(14,165,233,0.25);
   border-radius:var(--radius);padding:20px;text-align:center;
   cursor:pointer;transition:all 0.2s ease;background:var(--blue-light);
-  min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;
 }
 .photo-upload-container:hover{border-color:var(--accent-1);background:rgba(14,165,233,0.07)}
 .photo-upload-container input[type="file"]{
@@ -348,39 +348,13 @@ select option{background:#fff;color:var(--text)}
 .btn-remove-photo:hover{background:var(--danger);transform:scale(1.1)}
 
 /* ── Signature pad ── */
-.sig-wrap{margin:8px 0;display:flex;flex-direction:column;gap:8px}
-.sig-wrap label{display:block;font-weight:700;font-size:13px;color:var(--text-2)}
-.sig-canvas-wrap{
-  position:relative;
-  width:100%;
-  border:2px dashed rgba(14,165,233,0.3);
-  border-radius:var(--radius);
-  background:#fff;
-  overflow:hidden;           /* icon ✕ tidak bisa keluar batas */
-  transition:border-color 0.2s;
-  min-height:120px;
-}
-.sig-canvas-wrap:hover,.sig-canvas-wrap:focus-within{border-color:var(--accent-1)}
+.sig-wrap{margin:8px 0}
+.sig-wrap label{display:block;margin-bottom:6px;font-weight:700;font-size:13px;color:var(--text-2)}
 .sig-wrap canvas{
-  display:block;
-  width:100%;                /* ikuti lebar kontainer */
-  height:120px;              /* tinggi CSS — internal px di-sync JS */
-  cursor:crosshair;
-  touch-action:none;
-  background:transparent;
+  border:2px dashed rgba(14,165,233,0.3);border-radius:var(--radius);
+  background:#fff;cursor:crosshair;touch-action:none;transition:border-color 0.2s;display:block;
 }
-.sig-clear-btn{
-  position:absolute;top:8px;right:8px;
-  width:28px;height:28px;border-radius:50%;
-  background:rgba(239,68,68,0.85);color:#fff;
-  border:none;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
-  font-size:14px;font-weight:700;line-height:1;
-  z-index:3;transition:all 0.2s ease;
-  box-shadow:0 2px 8px rgba(239,68,68,0.3);
-}
-.sig-clear-btn:hover{background:var(--danger);transform:scale(1.1);box-shadow:0 4px 12px rgba(239,68,68,0.4)}
-.sig-hint{font-size:11px;color:var(--text-3);line-height:1.4}
+.sig-wrap canvas:hover{border-color:var(--accent-1)}
 
 /* ── Preview photo in card ── */
 .preview{border-radius:var(--radius);overflow:hidden;margin-top:10px}
@@ -442,6 +416,7 @@ select option{background:#fff;color:var(--text)}
   background:rgba(255,255,255,0.2);color:#fff;
   display:flex;align-items:center;justify-content:center;
   cursor:pointer;font-size:14px;padding:0;font-family:inherit;
+  -webkit-tap-highlight-color:transparent;
   transition:background 0.15s;
 }
 .notification-close:hover{background:rgba(255,255,255,0.32)}
@@ -504,57 +479,73 @@ select option{background:#fff;color:var(--text)}
   display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;
   border-top:1px solid rgba(14,165,233,0.08);
 }
-/* ══ Form Modal (Peminjaman & Pengembalian) ══ */
+/* ══ Form Modal — Peminjaman & Pengembalian ══ */
 .form-modal{
   position:fixed;inset:0;z-index:4000;
   display:flex;align-items:flex-end;justify-content:center;
   pointer-events:none;
-  /* promote whole modal to its own compositor layer */
-  will-change:transform;
 }
 .form-modal.is-open{ pointer-events:auto }
 .form-modal[hidden]{ display:none }
 
-/* ── Backdrop — pure opacity, NO backdrop-filter (too expensive on mobile) ── */
+/* Backdrop — fade only, no blur */
 .form-modal-backdrop{
   position:absolute;inset:0;
-  background:rgba(7,89,133,0.5);
+  background:rgba(7,89,133,0.48);
   opacity:0;
-  transition:opacity 0.28s ease;
-  /* force GPU layer via transform hack */
+  transition:opacity 0.22s ease;
   transform:translateZ(0);
-  will-change:opacity;
 }
 .form-modal.is-open .form-modal-backdrop{ opacity:1 }
-.form-modal.closing .form-modal-backdrop{ opacity:0; transition-duration:0.2s }
+.form-modal.closing .form-modal-backdrop{ opacity:0 }
 
-/* ── Sheet — only animate transform, nothing else ── */
+/* Sheet — fade + subtle scale, NOT translateY (lebih ringan) */
 .form-modal-sheet{
   position:relative;z-index:1;
   width:100%;max-width:560px;
   max-height:92dvh;
   display:flex;flex-direction:column;
   background:#fff;
-  border-radius:24px 24px 0 0;
-  /* static shadow — NOT transitioned */
-  box-shadow:0 -4px 32px rgba(14,165,233,0.18),0 -1px 8px rgba(0,0,0,0.06);
-  transform:translate3d(0,100%,0);
-  transition:transform 0.36s cubic-bezier(0.32,0.72,0,1);
-  will-change:transform;
-  /* prevent child repaints from bubbling up */
-  isolation:isolate;
+  border-radius:20px 20px 0 0;
+  box-shadow:0 -4px 24px rgba(14,165,233,0.15);
+  opacity:0;
+  transform:translateZ(0) scale(0.98);
+  transform-origin:bottom center;
+  transition:opacity 0.22s ease, transform 0.22s ease;
+  will-change:opacity,transform;
 }
 .form-modal.is-open .form-modal-sheet{
-  transform:translate3d(0,0,0);
+  opacity:1;
+  transform:translateZ(0) scale(1);
 }
 .form-modal.closing .form-modal-sheet{
-  transform:translate3d(0,100%,0);
-  transition:transform 0.24s cubic-bezier(0.4,0,1,1);
+  opacity:0;
+  transform:translateZ(0) scale(0.98);
+}
+
+/* Drag handle — elemen nyata agar bisa menerima touch event */
+.form-modal-drag-handle{
+  flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  padding:12px 0 4px;
+  cursor:grab;
+  touch-action:none;
+  -webkit-tap-highlight-color:transparent;
+}
+.form-modal-drag-handle::before{
+  content:'';display:block;
+  width:36px;height:4px;border-radius:2px;
+  background:rgba(14,165,233,0.2);
+  transition:background 0.15s;
+}
+.form-modal-drag-handle:hover::before,
+.form-modal-drag-handle:active::before{
+  background:rgba(14,165,233,0.45);
 }
 
 .form-modal-header{
   display:flex;align-items:center;justify-content:space-between;
-  padding:18px 18px 14px;
+  padding:14px 18px 12px;
   border-bottom:1px solid rgba(14,165,233,0.1);
   flex-shrink:0;
 }
@@ -567,24 +558,113 @@ select option{background:#fff;color:var(--text)}
   background:rgba(14,165,233,0.08);color:var(--muted);
   display:flex;align-items:center;justify-content:center;
   font-size:16px;cursor:pointer;flex-shrink:0;
-  transition:all 0.2s ease;
+  -webkit-tap-highlight-color:transparent;
+  transition:background 0.15s,color 0.15s;
 }
 .form-modal-close:hover{background:rgba(239,68,68,0.1);color:var(--danger)}
 
 .form-modal-body{
   overflow-y:auto;-webkit-overflow-scrolling:touch;
   padding:18px;flex:1;
-  /* safe area for phones with bottom bar */
   padding-bottom:calc(18px + env(safe-area-inset-bottom));
 }
 
-/* pause expensive header animation while a modal is open */
-body.modal-open .header{
-  animation-play-state:paused;
+/* ── Filter chips (dari sesi sebelumnya) ── */
+.actions.chips{
+  display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;
+  justify-content:center;align-items:center;
 }
-.form-modal-sheet::before{
-  content:'';display:block;
-  width:40px;height:4px;border-radius:2px;
-  background:rgba(14,165,233,0.2);
-  margin:12px auto 0;flex-shrink:0;
+.actions.chips .btn{
+  flex:1;min-width:0;max-width:120px;
+  padding:7px 12px;border-radius:20px;
+  border:1.5px solid rgba(14,165,233,0.18);
+  font-size:12px;font-weight:600;
+  text-align:center;white-space:nowrap;
+  background:#fff;color:var(--muted);
+}
+.actions.chips .btn:hover{
+  border-color:var(--accent-1);color:var(--accent-1);
+  background:var(--blue-light);
+}
+.actions.chips .btn.active{
+  background:linear-gradient(135deg,var(--accent-1),var(--accent-2));
+  color:#fff;border-color:transparent;
+  box-shadow:0 2px 8px rgba(14,165,233,0.3);
+}
+
+/* ── Signature pad (dari sesi sebelumnya) ── */
+.sig-wrap{margin:8px 0;display:flex;flex-direction:column;gap:8px}
+.sig-wrap label{display:block;font-weight:700;font-size:13px;color:var(--text-2)}
+.sig-canvas-wrap{
+  position:relative;width:100%;
+  border:2px dashed rgba(14,165,233,0.3);border-radius:var(--radius);
+  background:#fff;overflow:hidden;transition:border-color 0.2s;min-height:120px;
+}
+.sig-canvas-wrap:hover,.sig-canvas-wrap:focus-within{border-color:var(--accent-1)}
+.sig-wrap canvas{
+  display:block;width:100%;height:120px;
+  cursor:crosshair;touch-action:none;background:transparent;
+  border:none; /* border ada di .sig-canvas-wrap, bukan canvas */
+}
+.sig-clear-btn{
+  position:absolute;top:8px;right:8px;
+  width:28px;height:28px;border-radius:50%;
+  background:rgba(239,68,68,0.85);color:#fff;border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:700;z-index:3;
+  -webkit-tap-highlight-color:transparent;
+  transition:background 0.15s;box-shadow:0 2px 8px rgba(239,68,68,0.3);
+}
+.sig-clear-btn:hover{background:var(--danger)}
+.sig-hint{font-size:11px;color:var(--text-3);line-height:1.4}
+
+/* ── Photo upload (min-height agar sejajar kanvas) ── */
+.photo-upload-container{
+  position:relative;
+  border:2px dashed rgba(14,165,233,0.25);
+  border-radius:var(--radius);padding:20px;text-align:center;
+  cursor:pointer;transition:border-color 0.15s;background:var(--blue-light);
+  min-height:120px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  -webkit-tap-highlight-color:transparent;
+}
+.photo-upload-container:hover{border-color:var(--accent-1)}
+.photo-upload-container input[type="file"]{
+  opacity:0;position:absolute;top:0;left:0;
+  width:100%;height:100%;cursor:pointer;z-index:2;
+}
+.upload-placeholder{color:var(--muted)}
+.upload-icon{font-size:2rem;margin-bottom:6px}
+.upload-placeholder p{font-weight:700;color:var(--text-2);margin:4px 0}
+.upload-placeholder small{font-size:12px;color:var(--text-3)}
+.photo-upload-container.has-image .upload-placeholder{display:none}
+.photo-preview img{width:100%;height:auto;max-height:200px;object-fit:cover;border-radius:var(--radius);display:block}
+.btn-remove-photo{
+  position:absolute;top:8px;right:8px;
+  width:28px;height:28px;border-radius:50%;
+  background:rgba(239,68,68,0.9);color:#fff;border:none;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-size:16px;font-weight:700;z-index:3;
+  -webkit-tap-highlight-color:transparent;
+  transition:background 0.15s;box-shadow:0 2px 8px rgba(239,68,68,0.3);
+}
+.btn-remove-photo:hover{background:var(--danger)}
+
+/* ── Section-box overflow guard ── */
+.section-box{
+  background:#ffffff;border:1.5px solid var(--border);
+  border-radius:var(--radius-lg);padding:18px;
+  box-shadow:var(--shadow-sm);margin-bottom:16px;
+  overflow:hidden;min-width:0;
+}
+
+/* ── Global tap highlight fix — semua elemen interaktif ── */
+select,
+input[type="date"],
+input[type="month"],
+input[type="file"],
+input[type="search"],
+label[for],
+.notification-close{
+  -webkit-tap-highlight-color:transparent;
 }
