@@ -444,16 +444,6 @@ function downloadText(filename, text){ const a = document.createElement('a'); a.
 let lastView = null;
 
 function showView(id) {
-  // reset when leaving
-  if (lastView === 'borrow' && id !== 'borrow') {
-    resetPhotoFrame('borrowPhotoContainer', 'borrowPhoto', 'borrowPreview');
-    if (el('borrowForm')) el('borrowForm').reset();
-  }
-  if (lastView === 'return' && id !== 'return') {
-    resetPhotoFrame('returnPhotoContainer', 'returnPhoto', 'returnPreview');
-    if (el('returnForm')) el('returnForm').reset();
-  }
-
   // switch view
   document.querySelectorAll('.view').forEach(v => v.hidden = true);
   const target = document.getElementById(id);
@@ -468,37 +458,96 @@ function showView(id) {
     t.classList.toggle('active', t.dataset.tab === id)
   );
 
-  const today = new Date().toISOString().split('T')[0];
-  if (id === 'borrow') {
-    if (el('borrowDate')) {
-      el('borrowDate').value = today;
-      el('borrowDate').readOnly = true;
-    }
-    if (el('expectedReturn')) {
-      el('expectedReturn').value = today;
-    }
-    if (el('borrower')) el('borrower').value = '';
-  }
-  if (id === 'return') {
-    if (el('returnDate')) {
-      el('returnDate').value = today;
-      el('returnDate').readOnly = true;
-    }
-  }
-  if (id === 'borrow' || id === 'return') populateSelects();
-
   if (id === 'manage') {
     if (el('manageSearch')) el('manageSearch').value = '';
     manageFilter = 'all';
     renderManage();
   }
 
-if (id === 'history') {
-  renderHistoryList();
-}
+  if (id === 'history') {
+    renderHistoryList();
+  }
 
   lastView = id;
 }
+
+/* ── Modal helpers ── */
+function _resetBorrowModal() {
+  const today = new Date().toISOString().split('T')[0];
+  if (el('borrowDate')) { el('borrowDate').value = today; el('borrowDate').readOnly = true; }
+  if (el('expectedReturn')) el('expectedReturn').value = today;
+  if (el('borrower')) el('borrower').value = '';
+  resetPhotoFrame('borrowPhotoContainer', 'borrowPhoto', 'borrowPreview');
+  if (el('borrowForm')) el('borrowForm').reset();
+  try { if (window.__borrowSignPad) window.__borrowSignPad.clear(); } catch(e) {}
+  // restore today after reset
+  if (el('borrowDate')) el('borrowDate').value = today;
+  if (el('expectedReturn')) el('expectedReturn').value = today;
+}
+
+function _resetReturnModal() {
+  const today = new Date().toISOString().split('T')[0];
+  if (el('returnDate')) { el('returnDate').value = today; el('returnDate').readOnly = true; }
+  resetPhotoFrame('returnPhotoContainer', 'returnPhoto', 'returnPreview');
+  if (el('returnForm')) el('returnForm').reset();
+  try { if (window.__returnSignPad) window.__returnSignPad.clear(); } catch(e) {}
+  if (el('returnDate')) el('returnDate').value = today;
+}
+
+function _openModal(modalId, setupFn) {
+  const modal = el(modalId);
+  if (!modal) return;
+  modal.classList.remove('closing', 'is-open');
+  modal.hidden = false;
+  document.body.classList.add('modal-open'); document.body.style.overflow = 'hidden';
+  if (setupFn) setupFn();
+  // one rAF so display:block is painted, then trigger transition
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      modal.classList.add('is-open');
+    });
+  });
+}
+
+function _closeModal(modalId) {
+  const modal = el(modalId);
+  if (!modal) return;
+  modal.classList.remove('is-open');
+  modal.classList.add('closing');
+  document.body.classList.remove('modal-open'); document.body.style.overflow = '';
+  // wait for close transition to finish (longest: 0.26s sheet + tiny buffer)
+  setTimeout(() => {
+    modal.hidden = true;
+    modal.classList.remove('closing');
+  }, 300);
+}
+
+function openBorrowModal(preSelectId) {
+  _openModal('borrowModal', () => {
+    populateSelects();
+    _resetBorrowModal();
+    if (preSelectId && el('borrowSelect')) el('borrowSelect').value = preSelectId;
+    // init signature pad lazily
+    if (!window.__borrowSignPad && el('borrowSign')) {
+      window.__borrowSignPad = makeSignaturePad('borrowSign', 'clearBorrowSign');
+    }
+  });
+}
+
+function closeBorrowModal() { _closeModal('borrowModal'); }
+
+function openReturnModal(preSelectId) {
+  _openModal('returnModal', () => {
+    populateSelects();
+    _resetReturnModal();
+    if (preSelectId && el('returnSelect')) el('returnSelect').value = preSelectId;
+    if (!window.__returnSignPad && el('returnSign')) {
+      window.__returnSignPad = makeSignaturePad('returnSign', 'clearReturnSign');
+    }
+  });
+}
+
+function closeReturnModal() { _closeModal('returnModal'); }
 
 
 /* --- UI rendering with chunking and cancellation tokens --- */
@@ -797,87 +846,148 @@ async function processPhotoInput(file, previewEl) {
 function makeSignaturePad(canvasId, clearBtnId) {
   const canvas = document.getElementById(canvasId);
   if(!canvas) return null;
+
   const ctx = canvas.getContext('2d');
-  // lightweight styling for drawing
-  ctx.lineWidth = 2.2;
-  ctx.lineCap = 'round';
-  ctx.strokeStyle = '#111';
+  const dpr = window.devicePixelRatio || 1;
+
+  // Sync canvas internal resolution to its CSS rendered size
+  function syncSize() {
+    const w = canvas.offsetWidth;
+    const h = canvas.offsetHeight;
+    if(!w || !h) return;
+    canvas.width  = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    ctx.scale(dpr, dpr);
+    ctx.lineWidth   = 2;
+    ctx.lineCap     = 'round';
+    ctx.lineJoin    = 'round';
+    ctx.strokeStyle = '#1a1a2e';
+  }
+
+  syncSize();
+
+  // Keep in sync if layout changes (orientation, panel resize, etc.)
+  if(window.ResizeObserver) {
+    new ResizeObserver(() => syncSize()).observe(canvas);
+  }
 
   let drawing = false;
-  let lastPos = null;
+  let points  = [];
 
-  function getPosFromMouse(e){
-    const r = canvas.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
-  }
-  function getPosFromTouch(t){
-    const r = canvas.getBoundingClientRect();
-    return { x: t.clientX - r.left, y: t.clientY - r.top };
+  function getPos(e) {
+    const r   = canvas.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return { x: src.clientX - r.left, y: src.clientY - r.top };
   }
 
-  canvas.addEventListener('mousedown', e => { drawing = true; lastPos = getPosFromMouse(e); ctx.beginPath(); ctx.moveTo(lastPos.x, lastPos.y); });
-  canvas.addEventListener('mousemove', e => { if(!drawing) return; const p = getPosFromMouse(e); ctx.lineTo(p.x, p.y); ctx.stroke(); });
-  canvas.addEventListener('mouseup', () => { drawing = false; lastPos = null; });
-  canvas.addEventListener('mouseleave', () => { drawing = false; lastPos = null; });
+  function startDraw(e) {
+    drawing = true;
+    const p = getPos(e);
+    points  = [p, p];
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+  }
 
-  // touch
-  canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing = true; const p = getPosFromTouch(e.touches[0]); ctx.beginPath(); ctx.moveTo(p.x, p.y); });
-  canvas.addEventListener('touchmove', e => { e.preventDefault(); if(!drawing) return; const p = getPosFromTouch(e.touches[0]); ctx.lineTo(p.x, p.y); ctx.stroke(); });
-  canvas.addEventListener('touchend', e => { e.preventDefault(); drawing = false; lastPos = null; });
+  function moveDraw(e) {
+    if(!drawing) return;
+    const p = getPos(e);
+    points.push(p);
+    if(points.length > 4) points.shift();
+    const p1  = points[points.length - 2];
+    const p2  = points[points.length - 1];
+    const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+    ctx.quadraticCurveTo(p1.x, p1.y, mid.x, mid.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(mid.x, mid.y);
+  }
+
+  function endDraw() {
+    if(!drawing) return;
+    drawing = false;
+    const p = points[points.length - 1];
+    if(p) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, ctx.lineWidth / 2, 0, Math.PI * 2);
+      ctx.fillStyle = ctx.strokeStyle;
+      ctx.fill();
+    }
+    points = [];
+  }
+
+  canvas.addEventListener('mousedown',  e => { e.preventDefault(); startDraw(e); });
+  canvas.addEventListener('mousemove',  e => { e.preventDefault(); moveDraw(e);  });
+  canvas.addEventListener('mouseup',        () => endDraw());
+  canvas.addEventListener('mouseleave',     () => endDraw());
+
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); startDraw(e); }, { passive: false });
+  canvas.addEventListener('touchmove',  e => { e.preventDefault(); moveDraw(e);  }, { passive: false });
+  canvas.addEventListener('touchend',   e => { e.preventDefault(); endDraw();    }, { passive: false });
 
   const clearBtn = document.getElementById(clearBtnId);
-  if(clearBtn) clearBtn.addEventListener('click', () => { ctx.clearRect(0,0,canvas.width,canvas.height); });
+  if(clearBtn) clearBtn.addEventListener('click', () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  });
 
-  function getDataUrl(){
-    // check whether canvas is empty by comparing to a blank canvas
+  function getDataUrl() {
     try {
       const blank = document.createElement('canvas');
-      blank.width = canvas.width; blank.height = canvas.height;
-      const blankData = blank.toDataURL();
-      const cur = canvas.toDataURL();
-      return cur === blankData ? '' : cur;
-    } catch (e) { return canvas.toDataURL(); }
+      blank.width  = canvas.width;
+      blank.height = canvas.height;
+      return canvas.toDataURL() === blank.toDataURL() ? '' : canvas.toDataURL();
+    } catch(e) { return canvas.toDataURL(); }
   }
 
-  return { getDataUrl, clear: () => ctx.clearRect(0,0,canvas.width,canvas.height) };
+  return { getDataUrl, clear: () => ctx.clearRect(0, 0, canvas.width, canvas.height) };
 }
 
-// inject signature UI into a form before its submit button
+// inject signature UI — canvas full width, X button overlaid on top-right corner
 function injectSignatureUI(formId, canvasId, clearBtnId) {
   const form = document.getElementById(formId);
   if(!form) return;
-  // do not inject twice
-  if (form.querySelector('#' + canvasId)) return;
+  if(form.querySelector('#' + canvasId)) return;
+
   const wrapper = document.createElement('div');
   wrapper.className = 'sig-wrap';
-  wrapper.style.margin = '8px 0';
   wrapper.innerHTML = `
-    <label style="display:block;margin-bottom:6px;font-weight:600;">Tanda Tangan (wajib):</label>
-    <div class="sig-row">
-      <canvas id="${canvasId}" width="200" height="120"></canvas>
-      <div class="sig-controls">
-        <button type="button" id="${clearBtnId}" class="btn ghost" style="height:36px;padding:6px 10px;">Hapus Tanda Tangan</button>
-        <div style="font-size:11px;color:#666;">Gunakan jari atau stylus untuk menandatangani. Tanda tangan wajib sebelum submit.</div>
-      </div>
+    <label>Tanda Tangan (wajib):</label>
+    <div class="sig-canvas-wrap">
+      <canvas id="${canvasId}"></canvas>
+      <button type="button" id="${clearBtnId}" class="sig-clear-btn" title="Hapus tanda tangan">✕</button>
     </div>
+    <span class="sig-hint">Gunakan jari atau stylus untuk menandatangani</span>
   `;
-  // insert wrapper before the last button[type=submit] in the form
+
   const submitBtn = form.querySelector('button[type="submit"]');
   if(submitBtn) form.insertBefore(wrapper, submitBtn);
   else form.appendChild(wrapper);
 }
 
-// create pads and wire into DOMContentLoaded
+// Inject signature UI into modal forms and wire close buttons on DOMContentLoaded
 document.addEventListener('DOMContentLoaded', () => {
-  try {setTimeout(()=>{
-    injectSignatureUI('borrowForm', 'borrowSign', 'clearBorrowSign');
-    injectSignatureUI('returnForm', 'returnSign', 'clearReturnSign');
-    // make pads available globally for handlers
-    window.__borrowSignPad = document.getElementById('borrowSign') ? makeSignaturePad('borrowSign', 'clearBorrowSign') : null;
-    window.__returnSignPad = document.getElementById('returnSign') ? makeSignaturePad('returnSign', 'clearReturnSign') : null;
-  },500);} catch (e) {
-    console.error('Signature UI injection failed', e);
-  }
+  try {
+    setTimeout(() => {
+      injectSignatureUI('borrowForm', 'borrowSign', 'clearBorrowSign');
+      injectSignatureUI('returnForm', 'returnSign', 'clearReturnSign');
+      // pads are initialised lazily on first modal open
+    }, 200);
+  } catch(e) { console.error('Signature UI injection failed', e); }
+
+  // close buttons
+  const closeBorrow = el('closeBorrowModal');
+  if (closeBorrow) closeBorrow.addEventListener('click', closeBorrowModal);
+  const closeReturn = el('closeReturnModal');
+  if (closeReturn) closeReturn.addEventListener('click', closeReturnModal);
+
+  // backdrop click closes modal
+  ['borrowModal','returnModal'].forEach(modalId => {
+    const modal = el(modalId);
+    if (!modal) return;
+    modal.querySelector('.form-modal-backdrop')?.addEventListener('click', () => {
+      if (modalId === 'borrowModal') closeBorrowModal();
+      else closeReturnModal();
+    });
+  });
 });
 
 /* -------------------- end signature helpers -------------------- */
@@ -941,7 +1051,7 @@ if(el('borrowForm')) el('borrowForm').addEventListener('submit', async e=> {
 
     populateSelects();
     renderStats(); await renderDashboardList(); renderHistoryList();
-    showView('dashboard');
+    closeBorrowModal();
     showToast('Peminjaman tercatat');
   }catch(err){
     console.error(err);
@@ -987,7 +1097,7 @@ if(el('returnForm')) el('returnForm').addEventListener('submit', async e=> {
 
     populateSelects();
     renderStats(); await renderDashboardList(); renderHistoryList();
-    showView('dashboard');
+    closeReturnModal();
     showToast('Pengembalian tercatat');
   }catch(err){
     console.error(err);
@@ -999,36 +1109,15 @@ if(el('returnForm')) el('returnForm').addEventListener('submit', async e=> {
 if(el('borrowPhoto')) el('borrowPhoto').addEventListener('change', async e => {
   const photoId = await processPhotoInput(e.target.files[0], el('borrowPreview'));
   e.target.dataset.photoId = photoId || '';
-  // scroll into view in a safe way
-  const btn = document.querySelector('#borrowForm button[type="submit"]');
-  const img = el('borrowPreview')?.querySelector('img');
-  const doScroll = () => {
-    if (btn) { try { btn.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (err) { window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); } }
-  };
-  if (img) {
-    if (img.complete) doScroll();
-    else {
-      img.addEventListener('load', doScroll, { once: true });
-      setTimeout(doScroll, 500);
-    }
-  } else { setTimeout(doScroll, 200); }
+  const body = el('borrowModal')?.querySelector('.form-modal-body');
+  setTimeout(() => { if(body) body.scrollTo({ top: body.scrollHeight, behavior: 'smooth' }); }, 300);
 });
 
 if(el('returnPhoto')) el('returnPhoto').addEventListener('change', async e => {
   const photoId = await processPhotoInput(e.target.files[0], el('returnPreview'));
   e.target.dataset.photoId = photoId || '';
-  const btn = document.querySelector('#returnForm button[type="submit"]');
-  const img = el('returnPreview')?.querySelector('img');
-  const doScroll = () => {
-    if (btn) { try { btn.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (err) { window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); } }
-  };
-  if (img) {
-    if (img.complete) doScroll();
-    else {
-      img.addEventListener('load', doScroll, { once: true });
-      setTimeout(doScroll, 500);
-    }
-  } else { setTimeout(doScroll, 200); }
+  const body = el('returnModal')?.querySelector('.form-modal-body');
+  setTimeout(() => { if(body) body.scrollTo({ top: body.scrollHeight, behavior: 'smooth' }); }, 300);
 });
 
 /* history month */
@@ -1532,8 +1621,8 @@ if(el('clearAll')) el('clearAll').addEventListener('click', ()=> {
 if(el('items')) el('items').addEventListener('click', (e)=>{
   const btn = e.target.closest('button[data-action]'); if(!btn) return;
   const action = btn.dataset.action; const id = btn.dataset.id;
-  if(action==='borrow'){ showView('borrow'); el('borrowSelect').value = id; }
-  else if(action==='return'){ showView('return'); el('returnSelect').value = id; }
+  if(action==='borrow') openBorrowModal(id);
+  else if(action==='return') openReturnModal(id);
 });
 
 /* Consolidated manageList delegation: delete/edit/save-edit/cancel-edit */

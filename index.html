@@ -39,14 +39,7 @@
         <span class="tab-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2zm0 12H4V9h16v10zM13 5H11V3H9v2H7V3H5v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3h-2v2h-2V3h-2v2z"/></svg></span>
         <span class="tab-label">Kelola Barang</span>
       </button>
-      <button class="tab" data-tab="borrow" role="tab">
-        <span class="tab-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14zM12 19l5-4-5-4v3H9v2h3v3z"/></svg></span>
-        <span class="tab-label">Peminjaman Barang</span>
-      </button>
-      <button class="tab" data-tab="return" role="tab">
-        <span class="tab-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14zM12 9l-5 4 5 4v-3h3v-2h-3V9z"/></svg></span>
-        <span class="tab-label">Kembalikan Barang</span>
-      </button>
+
       <button class="tab" data-tab="history" role="tab">
         <span class="tab-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6a7 7 0 1 1 2.05 4.95L6.63 18.37A9 9 0 1 0 13 3zm-1 5v5l4.25 2.52.77-1.28-3.52-2.09V8H12z"/></svg></span>
         <span class="tab-label">Riwayat Peminjaman</span>
@@ -138,83 +131,9 @@
 
     </section>
 
-    <!-- ══════════════════════════════
-         PINJAM
-    ══════════════════════════════ -->
-    <section class="view" hidden id="borrow">
-      <div class="section-box">
-        <div class="section-title">📤 Catat Peminjaman</div>
-        <form class="form" id="borrowForm">
-          <div>
-            <label for="borrowSelect">Pilih Barang</label>
-            <select class="select" id="borrowSelect" required>
-              <option value="">Pilih barang yang tersedia…</option>
-            </select>
-          </div>
-          <div>
-            <label for="borrower">Nama Peminjam</label>
-            <input class="input" id="borrower" placeholder="Nama lengkap peminjam" required type="text"/>
-          </div>
-          <div>
-            <label for="borrowDate">Tanggal Peminjaman</label>
-            <input class="input" id="borrowDate" required type="date"/>
-          </div>
-          <div>
-            <label for="expectedReturn">Perkiraan Pengembalian</label>
-            <input class="input" id="expectedReturn" placeholder="Perkiraan pengembalian (opsional)" type="date"/>
-          </div>
-          <div>
-            <label>Foto Peminjaman</label>
-            <div class="photo-upload-container" id="borrowPhotoContainer">
-              <input accept="image/*" capture="environment" id="borrowPhoto" name="borrowPhoto" type="file"/>
-              <div class="upload-placeholder">
-                <div class="upload-icon">📷</div>
-                <p>Ambil Foto</p>
-                <small>Ketuk untuk ambil foto bukti peminjaman</small>
-              </div>
-              <div class="photo-preview" id="borrowPreview"></div>
-            </div>
-          </div>
-          <div class="hr"></div>
-          <button class="btn primary full" type="submit">Catat Peminjaman</button>
-        </form>
-      </div>
-    </section>
 
-    <!-- ══════════════════════════════
-         KEMBALIKAN
-    ══════════════════════════════ -->
-    <section class="view" hidden id="return">
-      <div class="section-box">
-        <div class="section-title">📥 Catat Pengembalian</div>
-        <form class="form" id="returnForm">
-          <div>
-            <label for="returnSelect">Pilih Barang</label>
-            <select class="select" id="returnSelect" required>
-              <option value="">Pilih barang yang dipinjam…</option>
-            </select>
-          </div>
-          <div>
-            <label for="returnDate">Tanggal Pengembalian</label>
-            <input class="input" id="returnDate" required type="date"/>
-          </div>
-          <div>
-            <label>Foto Pengembalian</label>
-            <div class="photo-upload-container" id="returnPhotoContainer">
-              <input accept="image/*" capture="environment" id="returnPhoto" name="returnPhoto" type="file"/>
-              <div class="upload-placeholder">
-                <div class="upload-icon">📷</div>
-                <p>Ambil Foto</p>
-                <small>Ketuk untuk ambil foto bukti pengembalian</small>
-              </div>
-              <div class="photo-preview" id="returnPreview"></div>
-            </div>
-          </div>
-          <div class="hr"></div>
-          <button class="btn primary full" type="submit">Catat Pengembalian</button>
-        </form>
-      </div>
-    </section>
+
+
 
     <!-- ══════════════════════════════
          RIWAYAT
@@ -271,6 +190,93 @@
     <div class="small">Data disimpan di perangkat Anda.</div>
     <div class="small">Dikembangkan oleh: Twin Insani, S.Kom</div>
   </footer>
+
+
+  <!-- ══ Modal Peminjaman ══ -->
+  <div class="form-modal" id="borrowModal" hidden aria-modal="true" role="dialog" aria-labelledby="borrowModalTitle">
+    <div class="form-modal-backdrop"></div>
+    <div class="form-modal-sheet">
+      <div class="form-modal-header">
+        <div class="form-modal-title" id="borrowModalTitle">📤 Catat Peminjaman</div>
+        <button class="form-modal-close" id="closeBorrowModal" aria-label="Tutup">✕</button>
+      </div>
+      <div class="form-modal-body">
+        <form class="form" id="borrowForm" autocomplete="off">
+          <div>
+            <label for="borrowSelect">Pilih Barang</label>
+            <select class="select" id="borrowSelect" required>
+              <option value="">Pilih barang yang tersedia…</option>
+            </select>
+          </div>
+          <div>
+            <label for="borrower">Nama Peminjam</label>
+            <input class="input" id="borrower" placeholder="Nama lengkap peminjam" required type="text"/>
+          </div>
+          <div>
+            <label for="borrowDate">Tanggal Peminjaman</label>
+            <input class="input" id="borrowDate" required type="date"/>
+          </div>
+          <div>
+            <label for="expectedReturn">Perkiraan Pengembalian</label>
+            <input class="input" id="expectedReturn" placeholder="Perkiraan pengembalian (opsional)" type="date"/>
+          </div>
+          <div>
+            <label>Foto Peminjaman</label>
+            <div class="photo-upload-container" id="borrowPhotoContainer">
+              <input accept="image/*" capture="environment" id="borrowPhoto" name="borrowPhoto" type="file"/>
+              <div class="upload-placeholder">
+                <div class="upload-icon">📷</div>
+                <p>Ambil Foto</p>
+                <small>Ketuk untuk ambil foto bukti peminjaman</small>
+              </div>
+              <div class="photo-preview" id="borrowPreview"></div>
+            </div>
+          </div>
+          <div class="hr"></div>
+          <button class="btn primary full" type="submit">Catat Peminjaman</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Modal Pengembalian ══ -->
+  <div class="form-modal" id="returnModal" hidden aria-modal="true" role="dialog" aria-labelledby="returnModalTitle">
+    <div class="form-modal-backdrop"></div>
+    <div class="form-modal-sheet">
+      <div class="form-modal-header">
+        <div class="form-modal-title" id="returnModalTitle">📥 Catat Pengembalian</div>
+        <button class="form-modal-close" id="closeReturnModal" aria-label="Tutup">✕</button>
+      </div>
+      <div class="form-modal-body">
+        <form class="form" id="returnForm" autocomplete="off">
+          <div>
+            <label for="returnSelect">Pilih Barang</label>
+            <select class="select" id="returnSelect" required>
+              <option value="">Pilih barang yang dipinjam…</option>
+            </select>
+          </div>
+          <div>
+            <label for="returnDate">Tanggal Pengembalian</label>
+            <input class="input" id="returnDate" required type="date"/>
+          </div>
+          <div>
+            <label>Foto Pengembalian</label>
+            <div class="photo-upload-container" id="returnPhotoContainer">
+              <input accept="image/*" capture="environment" id="returnPhoto" name="returnPhoto" type="file"/>
+              <div class="upload-placeholder">
+                <div class="upload-icon">📷</div>
+                <p>Ambil Foto</p>
+                <small>Ketuk untuk ambil foto bukti pengembalian</small>
+              </div>
+              <div class="photo-preview" id="returnPreview"></div>
+            </div>
+          </div>
+          <div class="hr"></div>
+          <button class="btn primary full" type="submit">Catat Pengembalian</button>
+        </form>
+      </div>
+    </div>
+  </div>
 
 </div><!-- /.app -->
 

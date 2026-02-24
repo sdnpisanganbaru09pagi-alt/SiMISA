@@ -235,13 +235,22 @@ input,select,textarea{transition:all 0.2s ease}
 .btn.active{background:linear-gradient(135deg,var(--accent-1),var(--accent-2));color:#fff;box-shadow:0 4px 12px rgba(14,165,233,0.3)}
 
 /* ── Filter chips ── */
-.actions.chips{gap:6px;flex-wrap:wrap;margin-bottom:16px}
-.actions.chips .btn.ghost{
-  padding:5px 12px;border-radius:20px;
+.actions.chips{
+  display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;
+  justify-content:center;align-items:center;
+}
+.actions.chips .btn{
+  flex:1;min-width:0;max-width:120px;
+  padding:7px 12px;border-radius:20px;
   border:1.5px solid rgba(14,165,233,0.18);
   font-size:12px;font-weight:600;
+  text-align:center;white-space:nowrap;
+  background:#fff;color:var(--muted);
 }
-.actions.chips .btn.ghost:hover{border-color:var(--accent-1);color:var(--accent-1);background:var(--blue-light)}
+.actions.chips .btn:hover{
+  border-color:var(--accent-1);color:var(--accent-1);
+  background:var(--blue-light);transform:translateY(-1px);
+}
 .actions.chips .btn.active{
   background:linear-gradient(135deg,var(--accent-1),var(--accent-2));
   color:#fff;border-color:transparent;
@@ -315,6 +324,7 @@ select option{background:#fff;color:var(--text)}
   border:2px dashed rgba(14,165,233,0.25);
   border-radius:var(--radius);padding:20px;text-align:center;
   cursor:pointer;transition:all 0.2s ease;background:var(--blue-light);
+  min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;
 }
 .photo-upload-container:hover{border-color:var(--accent-1);background:rgba(14,165,233,0.07)}
 .photo-upload-container input[type="file"]{
@@ -338,21 +348,39 @@ select option{background:#fff;color:var(--text)}
 .btn-remove-photo:hover{background:var(--danger);transform:scale(1.1)}
 
 /* ── Signature pad ── */
-.sig-wrap{margin:8px 0}
-.sig-wrap label{display:block;margin-bottom:6px;font-weight:700;font-size:13px;color:var(--text-2)}
+.sig-wrap{margin:8px 0;display:flex;flex-direction:column;gap:8px}
+.sig-wrap label{display:block;font-weight:700;font-size:13px;color:var(--text-2)}
+.sig-canvas-wrap{
+  position:relative;
+  width:100%;
+  border:2px dashed rgba(14,165,233,0.3);
+  border-radius:var(--radius);
+  background:#fff;
+  overflow:hidden;           /* icon ✕ tidak bisa keluar batas */
+  transition:border-color 0.2s;
+  min-height:120px;
+}
+.sig-canvas-wrap:hover,.sig-canvas-wrap:focus-within{border-color:var(--accent-1)}
 .sig-wrap canvas{
-  border:2px dashed rgba(14,165,233,0.3);border-radius:var(--radius);
-  background:#fff;cursor:crosshair;touch-action:none;transition:border-color 0.2s;display:block;
-  max-width:100%;  /* prevent canvas from overflowing its container */
+  display:block;
+  width:100%;                /* ikuti lebar kontainer */
+  height:120px;              /* tinggi CSS — internal px di-sync JS */
+  cursor:crosshair;
+  touch-action:none;
+  background:transparent;
 }
-.sig-wrap canvas:hover{border-color:var(--accent-1)}
-/* Signature layout: stack vertically on small screens */
-.sig-wrap .sig-row{
-  display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;
+.sig-clear-btn{
+  position:absolute;top:8px;right:8px;
+  width:28px;height:28px;border-radius:50%;
+  background:rgba(239,68,68,0.85);color:#fff;
+  border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:700;line-height:1;
+  z-index:3;transition:all 0.2s ease;
+  box-shadow:0 2px 8px rgba(239,68,68,0.3);
 }
-.sig-wrap .sig-controls{
-  display:flex;flex-direction:column;gap:6px;min-width:0;flex:1;
-}
+.sig-clear-btn:hover{background:var(--danger);transform:scale(1.1);box-shadow:0 4px 12px rgba(239,68,68,0.4)}
+.sig-hint{font-size:11px;color:var(--text-3);line-height:1.4}
 
 /* ── Preview photo in card ── */
 .preview{border-radius:var(--radius);overflow:hidden;margin-top:10px}
@@ -475,4 +503,88 @@ select option{background:#fff;color:var(--text)}
   background:linear-gradient(180deg,rgba(14,165,233,0.03),transparent);
   display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;
   border-top:1px solid rgba(14,165,233,0.08);
+}
+/* ══ Form Modal (Peminjaman & Pengembalian) ══ */
+.form-modal{
+  position:fixed;inset:0;z-index:4000;
+  display:flex;align-items:flex-end;justify-content:center;
+  pointer-events:none;
+  /* promote whole modal to its own compositor layer */
+  will-change:transform;
+}
+.form-modal.is-open{ pointer-events:auto }
+.form-modal[hidden]{ display:none }
+
+/* ── Backdrop — pure opacity, NO backdrop-filter (too expensive on mobile) ── */
+.form-modal-backdrop{
+  position:absolute;inset:0;
+  background:rgba(7,89,133,0.5);
+  opacity:0;
+  transition:opacity 0.28s ease;
+  /* force GPU layer via transform hack */
+  transform:translateZ(0);
+  will-change:opacity;
+}
+.form-modal.is-open .form-modal-backdrop{ opacity:1 }
+.form-modal.closing .form-modal-backdrop{ opacity:0; transition-duration:0.2s }
+
+/* ── Sheet — only animate transform, nothing else ── */
+.form-modal-sheet{
+  position:relative;z-index:1;
+  width:100%;max-width:560px;
+  max-height:92dvh;
+  display:flex;flex-direction:column;
+  background:#fff;
+  border-radius:24px 24px 0 0;
+  /* static shadow — NOT transitioned */
+  box-shadow:0 -4px 32px rgba(14,165,233,0.18),0 -1px 8px rgba(0,0,0,0.06);
+  transform:translate3d(0,100%,0);
+  transition:transform 0.36s cubic-bezier(0.32,0.72,0,1);
+  will-change:transform;
+  /* prevent child repaints from bubbling up */
+  isolation:isolate;
+}
+.form-modal.is-open .form-modal-sheet{
+  transform:translate3d(0,0,0);
+}
+.form-modal.closing .form-modal-sheet{
+  transform:translate3d(0,100%,0);
+  transition:transform 0.24s cubic-bezier(0.4,0,1,1);
+}
+
+.form-modal-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:18px 18px 14px;
+  border-bottom:1px solid rgba(14,165,233,0.1);
+  flex-shrink:0;
+}
+.form-modal-title{
+  font-weight:800;font-size:1rem;color:var(--blue-dark);
+  display:flex;align-items:center;gap:6px;
+}
+.form-modal-close{
+  width:32px;height:32px;border-radius:50%;border:none;
+  background:rgba(14,165,233,0.08);color:var(--muted);
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;cursor:pointer;flex-shrink:0;
+  transition:all 0.2s ease;
+}
+.form-modal-close:hover{background:rgba(239,68,68,0.1);color:var(--danger)}
+
+.form-modal-body{
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:18px;flex:1;
+  /* safe area for phones with bottom bar */
+  padding-bottom:calc(18px + env(safe-area-inset-bottom));
+}
+
+/* pause expensive header animation while a modal is open */
+body.modal-open .header{
+  animation-play-state:paused;
+}
+.form-modal-sheet::before{
+  content:'';display:block;
+  width:40px;height:4px;border-radius:2px;
+  background:rgba(14,165,233,0.2);
+  margin:12px auto 0;flex-shrink:0;
 }
