@@ -108,6 +108,8 @@ input,select,textarea{transition:all 0.2s ease}
   display:flex;align-items:center;gap:12px;
   position:sticky;top:0;z-index:100;
   box-shadow:0 4px 20px rgba(14,165,233,0.2);
+  will-change:background; /* isolate from layout */
+  contain:paint layout; /* prevent header repaints from affecting rest of page */
 }
 .brand{display:flex;gap:12px;align-items:center;flex:1;min-width:0;position:relative;z-index:1}
 .logo{
@@ -265,7 +267,8 @@ input,select,textarea{transition:all 0.2s ease}
 .card{
   background:#ffffff;border:2px solid rgba(14,165,233,0.1);
   border-radius:var(--radius-lg);padding:18px;
-  display:flex;flex-direction:column;transition:all 0.2s ease;
+  display:flex;flex-direction:column;transition:transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  contain:content; /* limit layout/paint scope per card */
 }
 .card:hover{transform:translateY(-2px);box-shadow:var(--shadow-md);border-color:rgba(14,165,233,0.22)}
 .card.available{border-color:rgba(14,165,233,0.1)}
@@ -486,20 +489,20 @@ select option{background:#fff;color:var(--text)}
   pointer-events:none;
 }
 .form-modal.is-open{ pointer-events:auto }
-.form-modal[hidden]{ display:none }
+.form-modal[hidden]{ display:none !important }
 
-/* Backdrop — fade only, no blur */
+/* Backdrop */
 .form-modal-backdrop{
   position:absolute;inset:0;
   background:rgba(7,89,133,0.48);
   opacity:0;
-  transition:opacity 0.22s ease;
-  transform:translateZ(0);
+  transition:opacity 0.28s ease;
+  will-change:opacity;
 }
 .form-modal.is-open .form-modal-backdrop{ opacity:1 }
 .form-modal.closing .form-modal-backdrop{ opacity:0 }
 
-/* Sheet — fade + subtle scale, NOT translateY (lebih ringan) */
+/* Sheet — pure translateY: GPU composited, zero paint cost */
 .form-modal-sheet{
   position:relative;z-index:1;
   width:100%;max-width:560px;
@@ -507,23 +510,21 @@ select option{background:#fff;color:var(--text)}
   display:flex;flex-direction:column;
   background:#fff;
   border-radius:20px 20px 0 0;
-  box-shadow:0 -4px 24px rgba(14,165,233,0.15);
-  opacity:0;
-  transform:translateZ(0) scale(0.98);
-  transform-origin:bottom center;
-  transition:opacity 0.22s ease, transform 0.22s ease;
-  will-change:opacity,transform;
+  box-shadow:0 -6px 32px rgba(14,165,233,0.18);
+  transform:translate3d(0,100%,0);
+  transition:transform 0.34s cubic-bezier(0.32,0.72,0,1);
+  will-change:transform;
+  backface-visibility:hidden;
 }
 .form-modal.is-open .form-modal-sheet{
-  opacity:1;
-  transform:translateZ(0) scale(1);
+  transform:translate3d(0,0,0);
 }
 .form-modal.closing .form-modal-sheet{
-  opacity:0;
-  transform:translateZ(0) scale(0.98);
+  transform:translate3d(0,100%,0);
+  transition:transform 0.26s cubic-bezier(0.4,0,1,1);
 }
 
-/* Drag handle — elemen nyata agar bisa menerima touch event */
+/* Drag handle */
 .form-modal-drag-handle{
   flex-shrink:0;
   display:flex;align-items:center;justify-content:center;
@@ -536,11 +537,12 @@ select option{background:#fff;color:var(--text)}
   content:'';display:block;
   width:36px;height:4px;border-radius:2px;
   background:rgba(14,165,233,0.2);
-  transition:background 0.15s;
+  transition:background 0.15s, width 0.2s;
 }
 .form-modal-drag-handle:hover::before,
 .form-modal-drag-handle:active::before{
-  background:rgba(14,165,233,0.45);
+  background:rgba(14,165,233,0.5);
+  width:48px;
 }
 
 .form-modal-header{
