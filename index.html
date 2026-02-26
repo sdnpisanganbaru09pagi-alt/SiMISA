@@ -193,36 +193,54 @@
 
 
   <!-- ══ Modal Peminjaman ══ -->
-  <div class="form-modal" id="borrowModal" hidden aria-modal="true" role="dialog" aria-labelledby="borrowModalTitle">
-    <div class="form-modal-backdrop"></div>
+  <div class="form-modal" id="borrowModal" aria-modal="true" role="dialog" aria-labelledby="borrowModalTitle">
     <div class="form-modal-sheet">
       <div class="form-modal-drag-handle" id="borrowDragHandle"></div>
       <div class="form-modal-header">
-        <div class="form-modal-title" id="borrowModalTitle">📤 Catat Peminjaman</div>
+        <div class="form-modal-title" id="borrowModalTitle">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M9 5v2H6.5l-.94 8.45A2 2 0 0 0 7.54 18h8.92a2 2 0 0 0 1.98-2.55L17.5 7H15V5a3 3 0 0 0-6 0m2 0a1 1 0 0 1 2 0v2h-2V5M7 20h10v2H7v-2Z"/></svg>
+          Catat Peminjaman
+        </div>
         <button class="form-modal-close" id="closeBorrowModal" aria-label="Tutup">✕</button>
       </div>
       <div class="form-modal-body">
         <form class="form" id="borrowForm" autocomplete="off">
-          <div>
-            <label for="borrowSelect">Pilih Barang</label>
+
+          <label style="display:none">
             <select class="select" id="borrowSelect" required>
               <option value="">Pilih barang yang tersedia…</option>
             </select>
-          </div>
-          <div>
-            <label for="borrower">Nama Peminjam</label>
+          </label>
+
+          <label>
+            <div class="field-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+              Nama Peminjam
+            </div>
             <input class="input" id="borrower" placeholder="Nama lengkap peminjam" required type="text"/>
-          </div>
-          <div>
-            <label for="borrowDate">Tanggal Peminjaman</label>
+          </label>
+
+          <label>
+            <div class="field-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4V2h2v2h6V2h2v2h3a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3zm-2 4v11h14V8H5zm2 2h2v2H7v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2zm-8 4h2v2H7v-2zm4 0h2v2h-2v-2z"/></svg>
+              Tanggal Peminjaman
+            </div>
             <input class="input" id="borrowDate" required type="date"/>
-          </div>
-          <div>
-            <label for="expectedReturn">Perkiraan Pengembalian</label>
-            <input class="input" id="expectedReturn" placeholder="Perkiraan pengembalian (opsional)" type="date"/>
-          </div>
-          <div>
-            <label>Foto Peminjaman</label>
+          </label>
+
+          <label>
+            <div class="field-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>
+              Perkiraan Pengembalian <span style="font-weight:400;color:var(--text-3)">(opsional)</span>
+            </div>
+            <input class="input" id="expectedReturn" type="date"/>
+          </label>
+
+          <label>
+            <div class="field-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v2H4zm0 14h16v2H4zm2-7h2v2H6zm4 0h2v2h-2zm4 0h2v2h-2z"/></svg>
+              Foto Peminjaman
+            </div>
             <div class="photo-upload-container" id="borrowPhotoContainer">
               <input accept="image/*" capture="environment" id="borrowPhoto" name="borrowPhoto" type="file"/>
               <div class="upload-placeholder">
@@ -232,37 +250,50 @@
               </div>
               <div class="photo-preview" id="borrowPreview"></div>
             </div>
+          </label>
+
+          <div class="modal-actions">
+            <button class="btn ghost" type="button" id="cancelBorrowBtn" style="flex:1">Batal</button>
+            <button class="btn primary" type="submit" style="flex:1">Catat Peminjaman</button>
           </div>
-          <div class="hr"></div>
-          <button class="btn primary full" type="submit">Catat Peminjaman</button>
         </form>
       </div>
     </div>
   </div>
 
   <!-- ══ Modal Pengembalian ══ -->
-  <div class="form-modal" id="returnModal" hidden aria-modal="true" role="dialog" aria-labelledby="returnModalTitle">
-    <div class="form-modal-backdrop"></div>
+  <div class="form-modal" id="returnModal" aria-modal="true" role="dialog" aria-labelledby="returnModalTitle">
     <div class="form-modal-sheet">
       <div class="form-modal-drag-handle" id="returnDragHandle"></div>
       <div class="form-modal-header">
-        <div class="form-modal-title" id="returnModalTitle">📥 Catat Pengembalian</div>
+        <div class="form-modal-title" id="returnModalTitle">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.41L5.83 13H21V7h-2z"/></svg>
+          Catat Pengembalian
+        </div>
         <button class="form-modal-close" id="closeReturnModal" aria-label="Tutup">✕</button>
       </div>
       <div class="form-modal-body">
         <form class="form" id="returnForm" autocomplete="off">
-          <div>
-            <label for="returnSelect">Pilih Barang</label>
+
+          <label style="display:none">
             <select class="select" id="returnSelect" required>
               <option value="">Pilih barang yang dipinjam…</option>
             </select>
-          </div>
-          <div>
-            <label for="returnDate">Tanggal Pengembalian</label>
+          </label>
+
+          <label>
+            <div class="field-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4V2h2v2h6V2h2v2h3a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3zm-2 4v11h14V8H5zm2 2h2v2H7v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2zm-8 4h2v2H7v-2zm4 0h2v2h-2v-2z"/></svg>
+              Tanggal Pengembalian
+            </div>
             <input class="input" id="returnDate" required type="date"/>
-          </div>
-          <div>
-            <label>Foto Pengembalian</label>
+          </label>
+
+          <label>
+            <div class="field-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v2H4zm0 14h16v2H4zm2-7h2v2H6zm4 0h2v2h-2zm4 0h2v2h-2z"/></svg>
+              Foto Pengembalian
+            </div>
             <div class="photo-upload-container" id="returnPhotoContainer">
               <input accept="image/*" capture="environment" id="returnPhoto" name="returnPhoto" type="file"/>
               <div class="upload-placeholder">
@@ -272,9 +303,12 @@
               </div>
               <div class="photo-preview" id="returnPreview"></div>
             </div>
+          </label>
+
+          <div class="modal-actions">
+            <button class="btn ghost" type="button" id="cancelReturnBtn" style="flex:1">Batal</button>
+            <button class="btn primary" type="submit" style="flex:1">Catat Pengembalian</button>
           </div>
-          <div class="hr"></div>
-          <button class="btn primary full" type="submit">Catat Pengembalian</button>
         </form>
       </div>
     </div>

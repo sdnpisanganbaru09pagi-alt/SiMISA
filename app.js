@@ -1,11 +1,8 @@
 if ("serviceWorker" in navigator) {
-  // Defer SW registration until after first paint — avoids startup jank
   window.addEventListener("load", () => {
-    setTimeout(() => {
-      navigator.serviceWorker.register("./service-worker.js")
-        .then(reg => console.log("SW registered:", reg))
-        .catch(err => console.error("SW registration failed:", err));
-    }, 2000);
+    navigator.serviceWorker.register("./service-worker.js")
+      .then(reg => console.log("SW registered:", reg))
+      .catch(err => console.error("SW registration failed:", err));
   });
 }
 ;
@@ -348,8 +345,8 @@ function addManualInstallButton() {
   }
 }
 
-// Call this after DOM is loaded - deferred to avoid blocking render
-setTimeout(addManualInstallButton, 3000);
+// Call this after DOM is loaded
+setTimeout(addManualInstallButton, 1000);
 
 /*
   - Penambahan Fitur Tanda Tangan Pada Laporan Bulanan 15/09
@@ -359,19 +356,14 @@ setTimeout(addManualInstallButton, 3000);
 const DB_NAME = 'simisa_photos';
 const DB_STORE = 'photos';
 let db;
-let _dbPromise = null;
 function openDB(){
-  if (_dbPromise) return _dbPromise;
-  _dbPromise = new Promise((resolve,reject)=>{
+  return new Promise((resolve,reject)=>{
     const req = indexedDB.open(DB_NAME,1);
     req.onupgradeneeded = e=>{ db = e.target.result; if(!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE); };
     req.onsuccess = e=>{ db = e.target.result; resolve(db); };
-    req.onerror = e=>{ _dbPromise = null; reject(e); };
+    req.onerror = e=> reject(e);
   });
-  return _dbPromise;
 }
-// Pre-open IndexedDB immediately so it's ready when first needed
-openDB().catch(e => console.warn('IndexedDB pre-open failed', e));
 async function putPhoto(id, blob){ if(!db) await openDB(); return new Promise((resolve,reject)=>{ const tx = db.transaction(DB_STORE,'readwrite'); tx.objectStore(DB_STORE).put(blob, id); tx.oncomplete = ()=> resolve(id); tx.onerror = e=> reject(e); }); }
 async function getPhoto(id){ if(!db) await openDB(); return new Promise((resolve,reject)=>{ const tx = db.transaction(DB_STORE,'readonly'); const req = tx.objectStore(DB_STORE).get(id); req.onsuccess = ()=> resolve(req.result || null); req.onerror = e=> reject(e); }); }
 
@@ -505,38 +497,16 @@ function _resetReturnModal() {
 function _openModal(modalId, setupFn) {
   const modal = el(modalId);
   if (!modal) return;
-  modal.classList.remove('closing', 'is-open');
-  modal.hidden = false;
-  document.body.classList.add('modal-open');
-  document.body.style.overflow = 'hidden';
   if (setupFn) setupFn();
-  // Single rAF after hidden=false forces layout, then transition fires
-  requestAnimationFrame(() => modal.classList.add('is-open'));
+  modal.classList.add('is-open');
+  document.body.style.overflow = 'hidden';
 }
 
 function _closeModal(modalId) {
   const modal = el(modalId);
-  if (!modal || modal.hidden) return;
+  if (!modal) return;
   modal.classList.remove('is-open');
-  modal.classList.add('closing');
-  document.body.classList.remove('modal-open');
   document.body.style.overflow = '';
-  const sheet = modal.querySelector('.form-modal-sheet');
-  const done = () => { modal.hidden = true; modal.classList.remove('closing'); };
-  if (sheet) {
-    let fired = false;
-    const onEnd = (e) => {
-      if (e && e.target !== sheet) return; // ignore child transitions
-      if (fired) return;
-      fired = true;
-      sheet.removeEventListener('transitionend', onEnd);
-      done();
-    };
-    sheet.addEventListener('transitionend', onEnd);
-    setTimeout(() => { if (!fired) { fired = true; sheet.removeEventListener('transitionend', onEnd); done(); } }, 400);
-  } else {
-    setTimeout(done, 300);
-  }
 }
 
 function openBorrowModal(preSelectId) {
@@ -638,128 +608,130 @@ async function renderDashboardList(){
     return;
   }
 
-  // Build all cards immediately with innerHTML (no photo fetch blocking first paint)
-  const frag = document.createDocumentFragment();
-  for (const it of list) {
-    const card = document.createElement('div');
-    card.className = 'card ' + (it.status === 'available' ? 'available' : 'borrowed');
-    card.dataset.id = it.id;
-    const catHtml = escapeHtml(it.category || '');
-    const badgeClass = it.status === 'available' ? 'available' : 'borrowed';
-    const badgeText = it.status === 'available' ? 'Tersedia' : 'Dipinjam';
-    const nameHtml = escapeHtml(it.name);
-    const descHtml = escapeHtml(it.desc || '');
-    let borrowHtml = '';
-    if (it.status === 'borrowed') {
-      const timeTxt = it.borrowTime ? ` • ${it.borrowTime}` : '';
-      const expTxt = it.expectedReturn ? ` • perkiraan: ${formatDate(it.expectedReturn)}` : '';
-      borrowHtml = `<div class="meta">Dipinjam oleh: ${escapeHtml(it.borrowedBy||'')} • ${formatDate(it.borrowDate)}${timeTxt}${expTxt}</div>`;
+  // prepare photo fetches in batches
+  const photoIds = list.map(it => it.photo || null);
+  const blobs = await fetchBlobsInBatches(photoIds, 10);
+
+  const renderFn = (it, idx) => {
+    const blob = blobs[idx];
+    const card = document.createElement('div'); card.className = 'card ' + (it.status === 'available' ? 'available' : 'borrowed'); card.dataset.id = it.id;
+    const top = document.createElement('div'); top.className='top';
+    top.appendChild(document.createElement('div')).textContent = it.category || '';
+    const badge = document.createElement('div'); badge.className = 'badge ' + (it.status==='available'?'available':'borrowed');
+    badge.textContent = it.status==='available' ? 'Tersedia' : 'Dipinjam';
+    top.appendChild(badge);
+    card.appendChild(top);
+    const h = document.createElement('h3'); h.textContent = it.name; card.appendChild(h);
+    const p = document.createElement('div'); p.className='meta'; p.textContent = it.desc || ''; card.appendChild(p);
+
+    if(it.status==='borrowed'){
+      const by = document.createElement('div'); by.className='meta'; const timeTxt = it.borrowTime ? ` • ${it.borrowTime}` : '';
+      by.textContent = `Dipinjam oleh: ${it.borrowedBy} • ${formatDate(it.borrowDate)}${timeTxt}${it.expectedReturn? ' • perkiraan: ' + formatDate(it.expectedReturn):''}`;
+      card.appendChild(by);
     }
-    const photoAttr = it.photo ? ` data-photo-id="${escapeHtml(it.photo)}"` : '';
-    const photoPlaceholder = it.photo ? `<div class="preview photo-lazy"${photoAttr}></div>` : '';
-    const actionBtn = it.status === 'available'
-      ? `<button class="btn primary" data-action="borrow" data-id="${it.id}">Pinjam</button>`
-      : `<button class="btn borrowed-return" data-action="return" data-id="${it.id}">Tandai dikembalikan</button>`;
 
-    card.innerHTML = `
-      <div class="top"><div>${catHtml}</div><div class="badge ${badgeClass}">${badgeText}</div></div>
-      <h3>${nameHtml}</h3>
-      <div class="meta">${descHtml}</div>
-      ${borrowHtml}
-      ${photoPlaceholder}
-      <div class="actions">${actionBtn}</div>`;
-    frag.appendChild(card);
-  }
-  itemsWrap.innerHTML = '';
-  itemsWrap.appendChild(frag);
+    if(blob){
+      const preview = document.createElement('div'); preview.className='preview';
+      const img = document.createElement('img'); img.loading='lazy';
+      const url = getObjectURLFor(it.photo, blob);
+      img.src = url || '';
+      img.alt = it.name + ' photo'; img.style.maxHeight='220px'; img.style.objectFit='cover';
+      img.addEventListener('click', ()=> openImageModal(url));
+      preview.appendChild(img); card.appendChild(preview);
+    }
 
-  // Lazily load photos only for visible cards using IntersectionObserver
-  _observeLazyPhotos(itemsWrap);
-}
+    const actions = document.createElement('div'); actions.className='actions';
 
-// IntersectionObserver-based lazy photo loader
-let _lazyObserver = null;
-function _observeLazyPhotos(container) {
-  if (!container) return;
-  const placeholders = container.querySelectorAll('.photo-lazy[data-photo-id]');
-  if (!placeholders.length) return;
+    if(it.status==='available'){
+      const borrowBtn = document.createElement('button'); borrowBtn.className='btn primary'; borrowBtn.textContent='Pinjam';
+      borrowBtn.dataset.action = 'borrow'; borrowBtn.dataset.id = it.id;
+      actions.appendChild(borrowBtn);
+    } else {
+      const returnBtn = document.createElement('button'); returnBtn.className='btn borrowed-return'; returnBtn.textContent='Tandai dikembalikan';
+      returnBtn.dataset.action = 'return'; returnBtn.dataset.id = it.id;
+      actions.appendChild(returnBtn);
+    }
+    card.appendChild(actions);
+    return card;
+  };
 
-  if (!_lazyObserver) {
-    _lazyObserver = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (!entry.isIntersecting) return;
-        const node = entry.target;
-        const photoId = node.dataset.photoId;
-        if (!photoId || node.dataset.loaded) return;
-        node.dataset.loaded = '1';
-        _lazyObserver.unobserve(node);
-
-        getCachedPhoto(photoId).then(blob => {
-          if (!blob) return;
-          const url = getObjectURLFor(photoId, blob);
-          if (!url) return;
-          const img = document.createElement('img');
-          img.loading = 'lazy';
-          img.src = url;
-          if (node.dataset.isSig) {
-            img.alt = 'signature';
-            img.style.maxHeight = '80px';
-            img.style.objectFit = 'contain';
-            img.style.border = '1px solid #eee';
-            img.style.borderRadius = '6px';
-          } else {
-            img.alt = 'photo';
-            img.style.maxHeight = (node.dataset.maxHeight || '220') + 'px';
-            img.style.objectFit = 'cover';
-            img.addEventListener('click', () => openImageModal(url));
-          }
-          node.appendChild(img);
-        }).catch(() => {});
-      });
-    }, { rootMargin: '200px' });
-  }
-
-  placeholders.forEach(p => {
-    if (!p.dataset.observed) { p.dataset.observed = '1'; _lazyObserver.observe(p); }
-  });
+  await renderInBatches('dashboard', list, 20, renderFn, itemsWrap);
 }
 
 async function renderHistoryList(){
-  const historyWrap = el('historyList');
-  historyWrap.innerHTML = '';
+  const historyWrap = el('historyList'); historyWrap.innerHTML='';
   const selectedMonth = el('historyMonth')?.value || '';
   let historyData = state.history.slice().reverse();
   if (selectedMonth) {
     historyData = historyData.filter(h => {
       const date = new Date(h.date);
-      return date.toISOString().slice(0, 7) === selectedMonth;
+      const monthStr = date.toISOString().slice(0, 7);
+      return monthStr === selectedMonth;
     });
   }
-  if(historyData.length===0){
-    historyWrap.innerHTML = '<div class="card"><div class="meta">Tidak ada riwayat untuk bulan ini.</div></div>';
-    return;
+  if(historyData.length===0){ historyWrap.innerHTML = '<div class="card"><div class="meta">Tidak ada riwayat untuk bulan ini.</div></div>'; return; }
+
+  // collect both photos and signatures
+  const photoIds = [];
+  historyData.forEach(h => {
+    if(h.photo) photoIds.push(h.photo);
+    if(h.signPhoto) photoIds.push(h.signPhoto);
+  });
+
+  const blobs = await fetchBlobsInBatches(photoIds, 10);
+
+  // map id -> blob
+  const blobMap = {};
+  for(let i=0;i<photoIds.length;i++){
+    blobMap[photoIds[i]] = blobs[i];
   }
 
-  // Render cards immediately without waiting for photos
-  const frag = document.createDocumentFragment();
-  for (const h of historyData) {
-    const c = document.createElement('div');
-    c.className = 'card';
-    const timeTxt = h.time ? ` • ${h.time}` : '';
-    let html = `<div class="meta">${escapeHtml(h.action.toUpperCase())} • ${escapeHtml(h.itemName)} • ${escapeHtml(h.by || h.borrower || '')} • ${formatDate(h.date)}${timeTxt}</div>`;
-    if (h.photo) {
-      html += `<div class="preview photo-lazy" data-photo-id="${escapeHtml(h.photo)}" data-max-height="180"></div>`;
-    }
-    if (h.signPhoto) {
-      html += `<div class="meta" style="margin-top:8px"><div style="font-size:12px;color:#444;margin-bottom:4px">Tanda Tangan:</div><div class="photo-lazy" data-photo-id="${escapeHtml(h.signPhoto)}" data-is-sig="1" style="min-height:40px"></div></div>`;
-    }
-    c.innerHTML = html;
-    frag.appendChild(c);
-  }
-  historyWrap.appendChild(frag);
+  const renderFn = (h, idx) => {
+    const c = document.createElement('div'); c.className='card';
+    const t = document.createElement('div'); t.className='meta'; const timeTxt = h.time ? ` • ${h.time}` : '';
+    t.textContent = `${h.action.toUpperCase()} • ${h.itemName} • ${h.by || h.borrower || ''} • ${formatDate(h.date)}${timeTxt}`;
+    c.appendChild(t);
 
-  // Lazy-load all photos/signatures via IntersectionObserver
-  _observeLazyPhotos(historyWrap);
+    if(h.photo && blobMap[h.photo]){
+      const pv = document.createElement('div'); pv.className='preview';
+      const im = document.createElement('img'); im.loading='lazy';
+      const url = getObjectURLFor(h.photo, blobMap[h.photo]);
+      im.src = url || '';
+      im.alt='photo'; im.style.maxHeight='180px'; im.style.objectFit='cover';
+      im.addEventListener('click', ()=> openImageModal(url));
+      pv.appendChild(im); c.appendChild(pv);
+    }
+
+    // signature below photo
+    if(h.signPhoto && blobMap[h.signPhoto]){
+      const sigWrap = document.createElement('div');
+      sigWrap.className = 'meta';
+      sigWrap.style.marginTop = '8px';
+      sigWrap.style.display = 'flex';
+      sigWrap.style.flexDirection = 'column';
+      sigWrap.style.gap = '6px';
+
+      const lbl = document.createElement('div');
+      lbl.textContent = 'Tanda Tangan:';
+      lbl.style.fontSize = '12px';
+      lbl.style.color = '#444';
+      sigWrap.appendChild(lbl);
+
+      const sigImg = document.createElement('img'); sigImg.loading='lazy';
+      sigImg.src = getObjectURLFor(h.signPhoto, blobMap[h.signPhoto]) || '';
+      sigImg.alt = 'signature';
+      sigImg.style.maxHeight = '80px';
+      sigImg.style.objectFit = 'contain';
+      sigImg.style.border = '1px solid #eee';
+      sigImg.style.borderRadius = '6px';
+      sigWrap.appendChild(sigImg);
+      c.appendChild(sigWrap);
+    }
+
+    return c;
+  };
+
+  await renderInBatches('history', historyData, 20, renderFn, historyWrap);
 }
 
 function populateSelects(){
@@ -965,7 +937,10 @@ function injectSignatureUI(formId, canvasId, clearBtnId) {
   const wrapper = document.createElement('div');
   wrapper.className = 'sig-wrap';
   wrapper.innerHTML = `
-    <label>Tanda Tangan (wajib):</label>
+    <div class="field-label" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2);font-weight:600;margin-bottom:6px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+      Tanda Tangan (wajib)
+    </div>
     <div class="sig-canvas-wrap">
       <canvas id="${canvasId}"></canvas>
       <button type="button" id="${clearBtnId}" class="sig-clear-btn" title="Hapus tanda tangan">✕</button>
@@ -973,8 +948,11 @@ function injectSignatureUI(formId, canvasId, clearBtnId) {
     <span class="sig-hint">Gunakan jari atau stylus untuk menandatangani</span>
   `;
 
+  // Insert before .modal-actions if present, otherwise before submit button, else append
+  const actionsDiv = form.querySelector('.modal-actions');
   const submitBtn = form.querySelector('button[type="submit"]');
-  if(submitBtn) form.insertBefore(wrapper, submitBtn);
+  if(actionsDiv) form.insertBefore(wrapper, actionsDiv);
+  else if(submitBtn) form.insertBefore(wrapper, submitBtn);
   else form.appendChild(wrapper);
 }
 
@@ -988,95 +966,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 200);
   } catch(e) { console.error('Signature UI injection failed', e); }
 
-  // close buttons
+  // Close buttons
   const closeBorrow = el('closeBorrowModal');
   if (closeBorrow) closeBorrow.addEventListener('click', closeBorrowModal);
   const closeReturn = el('closeReturnModal');
   if (closeReturn) closeReturn.addEventListener('click', closeReturnModal);
 
-  // backdrop click closes modal
+  // Batal buttons
+  const cancelBorrow = el('cancelBorrowBtn');
+  if (cancelBorrow) cancelBorrow.addEventListener('click', closeBorrowModal);
+  const cancelReturn = el('cancelReturnBtn');
+  if (cancelReturn) cancelReturn.addEventListener('click', closeReturnModal);
+
+  // Backdrop click closes modal
   ['borrowModal','returnModal'].forEach(modalId => {
     const modal = el(modalId);
     if (!modal) return;
-    modal.querySelector('.form-modal-backdrop')?.addEventListener('click', () => {
-      if (modalId === 'borrowModal') closeBorrowModal();
-      else closeReturnModal();
+    modal.addEventListener('click', e => {
+      // Only close if clicking directly on the overlay (not on the card)
+      if (e.target === modal) {
+        if (modalId === 'borrowModal') closeBorrowModal();
+        else closeReturnModal();
+      }
     });
   });
-
-  // Real-time drag-to-dismiss: sheet follows finger exactly
-  function _wireSwipeClose(handleId, modalId, closeFn) {
-    const handle = el(handleId);
-    const modal  = el(modalId);
-    if (!handle || !modal) return;
-    const sheet = modal.querySelector('.form-modal-sheet');
-    if (!sheet) return;
-
-    let startY = 0, curY = 0, startTime = 0, dragging = false;
-    const DISMISS_RATIO    = 0.38; // fraction of sheet height
-    const DISMISS_VELOCITY = 0.45; // px/ms
-
-    function onStart(e) {
-      startY = (e.touches ? e.touches[0] : e).clientY;
-      curY = startY;
-      startTime = Date.now();
-      dragging = false;
-    }
-
-    function onMove(e) {
-      const dy = (e.touches ? e.touches[0] : e).clientY - startY;
-      if (dy < 2) return; // ignore upward or tiny movement
-      if (!dragging) { dragging = true; sheet.style.transition = 'none'; }
-      curY = (e.touches ? e.touches[0] : e).clientY;
-      // Rubber-band resistance past 50% of sheet height
-      const sheetH = sheet.offsetHeight;
-      let t = dy;
-      if (dy > sheetH * 0.5) t = sheetH * 0.5 + (dy - sheetH * 0.5) * 0.3;
-      sheet.style.transform = `translate3d(0,${t}px,0)`;
-      // Fade backdrop proportionally
-      const bd = modal.querySelector('.form-modal-backdrop');
-      if (bd) bd.style.opacity = String(Math.max(0, 1 - (t / sheetH) * 1.1));
-    }
-
-    function onEnd() {
-      if (!dragging) return;
-      const dy = curY - startY;
-      const vel = dy / Math.max(1, Date.now() - startTime);
-      const sheetH = sheet.offsetHeight;
-      const bd = modal.querySelector('.form-modal-backdrop');
-
-      if (vel >= DISMISS_VELOCITY || dy >= sheetH * DISMISS_RATIO) {
-        sheet.style.transition = 'transform 0.24s cubic-bezier(0.4,0,1,1)';
-        sheet.style.transform  = `translate3d(0,${sheetH}px,0)`;
-        if (bd) { bd.style.transition = 'opacity 0.24s'; bd.style.opacity = '0'; }
-        setTimeout(() => {
-          sheet.style.transition = '';
-          sheet.style.transform  = '';
-          if (bd) { bd.style.transition = ''; bd.style.opacity = ''; }
-          closeFn();
-        }, 240);
-      } else {
-        // Snap back
-        sheet.style.transition = 'transform 0.3s cubic-bezier(0.32,0.72,0,1)';
-        sheet.style.transform  = 'translate3d(0,0,0)';
-        if (bd) { bd.style.transition = 'opacity 0.3s'; bd.style.opacity = '1'; }
-        setTimeout(() => {
-          sheet.style.transition = '';
-          sheet.style.transform  = '';
-          if (bd) { bd.style.transition = ''; bd.style.opacity = ''; }
-        }, 300);
-      }
-      dragging = false;
-    }
-
-    handle.addEventListener('touchstart', onStart, { passive: true });
-    handle.addEventListener('touchmove',  onMove,  { passive: true });
-    handle.addEventListener('touchend',   onEnd,   { passive: true });
-    handle.addEventListener('touchcancel',onEnd,   { passive: true });
-  }
-
-  _wireSwipeClose('borrowDragHandle', 'borrowModal', closeBorrowModal);
-  _wireSwipeClose('returnDragHandle', 'returnModal', closeReturnModal);
 });
 
 /* -------------------- end signature helpers -------------------- */
@@ -1827,18 +1740,7 @@ function _processToastQueue() {
 function throttle(fn, wait){ let last=0, t; return (...args)=>{ const now = Date.now(); if(now - last > wait){ last = now; fn(...args); } else { clearTimeout(t); t = setTimeout(()=>{ last = Date.now(); fn(...args); }, wait - (now - last)); } }; }
 
 /* top-level renderAll that calls the parts */
-async function renderAll(){
-  try{
-    renderStats();
-    await renderDashboardList();
-    populateSelects();
-    renderManage();
-    // History is not visible on load - render it lazily
-    renderHistoryList().catch(e => console.warn('history render error', e));
-  }catch(err){
-    console.error('renderAll failed', err);
-  }
-}
+async function renderAll(){ try{ renderStats(); await renderDashboardList(); await renderHistoryList(); populateSelects(); renderManage(); }catch(err){ console.error('renderAll failed', err); } }
 
 /* initial boot */
 load();

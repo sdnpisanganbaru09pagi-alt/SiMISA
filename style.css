@@ -108,8 +108,6 @@ input,select,textarea{transition:all 0.2s ease}
   display:flex;align-items:center;gap:12px;
   position:sticky;top:0;z-index:100;
   box-shadow:0 4px 20px rgba(14,165,233,0.2);
-  will-change:background; /* isolate from layout */
-  contain:paint layout; /* prevent header repaints from affecting rest of page */
 }
 .brand{display:flex;gap:12px;align-items:center;flex:1;min-width:0;position:relative;z-index:1}
 .logo{
@@ -267,8 +265,7 @@ input,select,textarea{transition:all 0.2s ease}
 .card{
   background:#ffffff;border:2px solid rgba(14,165,233,0.1);
   border-radius:var(--radius-lg);padding:18px;
-  display:flex;flex-direction:column;transition:transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-  contain:content; /* limit layout/paint scope per card */
+  display:flex;flex-direction:column;transition:all 0.2s ease;
 }
 .card:hover{transform:translateY(-2px);box-shadow:var(--shadow-md);border-color:rgba(14,165,233,0.22)}
 .card.available{border-color:rgba(14,165,233,0.1)}
@@ -482,78 +479,45 @@ select option{background:#fff;color:var(--text)}
   display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;
   border-top:1px solid rgba(14,165,233,0.08);
 }
-/* ══ Form Modal — Peminjaman & Pengembalian ══ */
+/* ══ Form Modal — SiMERY style, centered, no animation ══ */
 .form-modal{
-  position:fixed;inset:0;z-index:4000;
-  display:flex;align-items:flex-end;justify-content:center;
-  pointer-events:none;
+  position:fixed;inset:0;
+  display:none;
+  align-items:center;justify-content:center;
+  background:rgba(7,89,133,0.5);
+  z-index:4000;
+  padding:16px;
+  backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);
 }
-.form-modal.is-open{ pointer-events:auto }
-.form-modal[hidden]{ display:none !important }
+.form-modal.is-open{ display:flex; }
 
-/* Backdrop */
-.form-modal-backdrop{
-  position:absolute;inset:0;
-  background:rgba(7,89,133,0.48);
-  opacity:0;
-  transition:opacity 0.28s ease;
-  will-change:opacity;
-}
-.form-modal.is-open .form-modal-backdrop{ opacity:1 }
-.form-modal.closing .form-modal-backdrop{ opacity:0 }
-
-/* Sheet — pure translateY: GPU composited, zero paint cost */
+/* White card — matches SiMERY addStockModal card */
 .form-modal-sheet{
-  position:relative;z-index:1;
-  width:100%;max-width:560px;
-  max-height:92dvh;
-  display:flex;flex-direction:column;
+  width:100%;max-width:420px;
+  max-height:90dvh;
   background:#fff;
-  border-radius:20px 20px 0 0;
-  box-shadow:0 -6px 32px rgba(14,165,233,0.18);
-  transform:translate3d(0,100%,0);
-  transition:transform 0.34s cubic-bezier(0.32,0.72,0,1);
-  will-change:transform;
-  backface-visibility:hidden;
-}
-.form-modal.is-open .form-modal-sheet{
-  transform:translate3d(0,0,0);
-}
-.form-modal.closing .form-modal-sheet{
-  transform:translate3d(0,100%,0);
-  transition:transform 0.26s cubic-bezier(0.4,0,1,1);
+  border-radius:20px;
+  box-shadow:0 16px 48px rgba(14,165,233,0.2);
+  display:flex;flex-direction:column;
+  overflow:hidden;
 }
 
-/* Drag handle */
-.form-modal-drag-handle{
-  flex-shrink:0;
-  display:flex;align-items:center;justify-content:center;
-  padding:12px 0 4px;
-  cursor:grab;
-  touch-action:none;
-  -webkit-tap-highlight-color:transparent;
-}
-.form-modal-drag-handle::before{
-  content:'';display:block;
-  width:36px;height:4px;border-radius:2px;
-  background:rgba(14,165,233,0.2);
-  transition:background 0.15s, width 0.2s;
-}
-.form-modal-drag-handle:hover::before,
-.form-modal-drag-handle:active::before{
-  background:rgba(14,165,233,0.5);
-  width:48px;
-}
+/* Drag handle — hidden, not needed */
+.form-modal-drag-handle{ display:none; }
+.form-modal-backdrop{ display:none; }
 
+/* Title row — centered with icon, matches SiMERY h3 style */
 .form-modal-header{
+  padding:20px 20px 0;
   display:flex;align-items:center;justify-content:space-between;
-  padding:14px 18px 12px;
-  border-bottom:1px solid rgba(14,165,233,0.1);
   flex-shrink:0;
 }
 .form-modal-title{
-  font-weight:800;font-size:1rem;color:var(--blue-dark);
-  display:flex;align-items:center;gap:6px;
+  font-size:1.05rem;font-weight:800;
+  color:var(--blue-dark);
+  display:flex;align-items:center;justify-content:center;
+  gap:8px;flex:1;
 }
 .form-modal-close{
   width:32px;height:32px;border-radius:50%;border:none;
@@ -561,14 +525,29 @@ select option{background:#fff;color:var(--text)}
   display:flex;align-items:center;justify-content:center;
   font-size:16px;cursor:pointer;flex-shrink:0;
   -webkit-tap-highlight-color:transparent;
-  transition:background 0.15s,color 0.15s;
 }
-.form-modal-close:hover{background:rgba(239,68,68,0.1);color:var(--danger)}
+.form-modal-close:active{background:rgba(239,68,68,0.1);color:var(--danger)}
 
 .form-modal-body{
   overflow-y:auto;-webkit-overflow-scrolling:touch;
-  padding:18px;flex:1;
-  padding-bottom:calc(18px + env(safe-area-inset-bottom));
+  padding:16px 20px 20px;flex:1;
+  padding-bottom:calc(20px + env(safe-area-inset-bottom));
+}
+
+/* Label rows with icon — SiMERY style */
+.form-modal-body label .field-label{
+  display:flex;align-items:center;gap:8px;
+  margin-bottom:6px;font-size:13px;
+  color:var(--text-2);font-weight:600;
+}
+
+/* Modal action buttons row */
+.modal-actions{
+  display:flex;gap:10px;margin-top:4px;
+}
+@media(max-width:400px){
+  .modal-actions{flex-direction:column;}
+  .modal-actions button{width:100%;}
 }
 
 /* ── Filter chips (dari sesi sebelumnya) ── */
@@ -595,7 +574,7 @@ select option{background:#fff;color:var(--text)}
 }
 
 /* ── Signature pad (dari sesi sebelumnya) ── */
-.sig-wrap{margin:8px 0;display:flex;flex-direction:column;gap:8px}
+.sig-wrap{margin:0;display:flex;flex-direction:column;gap:6px}
 .sig-wrap label{display:block;font-weight:700;font-size:13px;color:var(--text-2)}
 .sig-canvas-wrap{
   position:relative;width:100%;
