@@ -339,13 +339,15 @@ select option{background:#fff;color:var(--text)}
 .photo-preview img{width:100%;height:auto;max-height:200px;object-fit:cover;border-radius:var(--radius);display:block}
 .btn-remove-photo{
   position:absolute;top:8px;right:8px;
-  width:28px;height:28px;border-radius:50%;
+  height:26px;padding:0 10px;border-radius:13px;
   background:rgba(239,68,68,0.9);color:#fff;border:none;
-  cursor:pointer;display:flex;align-items:center;justify-content:center;
-  font-size:16px;font-weight:700;z-index:3;
-  transition:all 0.2s ease;box-shadow:0 2px 8px rgba(239,68,68,0.3);
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;letter-spacing:0.02em;
+  z-index:3;box-shadow:0 2px 8px rgba(239,68,68,0.3);
+  font-family:inherit;
 }
-.btn-remove-photo:hover{background:var(--danger);transform:scale(1.1)}
+.btn-remove-photo:active{background:var(--danger)}
 
 /* ── Signature pad ── */
 .sig-wrap{margin:8px 0}
@@ -509,8 +511,9 @@ select option{background:#fff;color:var(--text)}
 
 /* Title row — centered with icon, matches SiMERY h3 style */
 .form-modal-header{
-  padding:20px 20px 0;
-  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 16px 14px 20px;
+  display:flex;align-items:center;
+  border-bottom:1px solid rgba(14,165,233,0.1);
   flex-shrink:0;
 }
 .form-modal-title{
@@ -525,6 +528,7 @@ select option{background:#fff;color:var(--text)}
   display:flex;align-items:center;justify-content:center;
   font-size:16px;cursor:pointer;flex-shrink:0;
   -webkit-tap-highlight-color:transparent;
+  line-height:1;
 }
 .form-modal-close:active{background:rgba(239,68,68,0.1);color:var(--danger)}
 
@@ -533,6 +537,23 @@ select option{background:#fff;color:var(--text)}
   padding:16px 20px 20px;flex:1;
   padding-bottom:calc(20px + env(safe-area-inset-bottom));
 }
+
+/* Modal item info banner */
+.modal-item-info{
+  display:none;
+  flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  padding:10px 20px;
+  background:linear-gradient(135deg,var(--blue-light),rgba(6,182,212,0.06));
+  border-bottom:1px solid rgba(14,165,233,0.1);
+  text-align:center;
+}
+.modal-item-info.visible{ display:flex; }
+.modal-item-info-text{ min-width:0;width:100%; }
+.modal-item-info-name{
+  font-weight:800;color:var(--text);font-size:14px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.modal-item-info-cat{ color:var(--muted);font-size:12px; }
 
 /* Label rows with icon — SiMERY style */
 .form-modal-body label .field-label{
@@ -589,14 +610,15 @@ select option{background:#fff;color:var(--text)}
 }
 .sig-clear-btn{
   position:absolute;top:8px;right:8px;
-  width:28px;height:28px;border-radius:50%;
-  background:rgba(239,68,68,0.85);color:#fff;border:none;cursor:pointer;
+  height:26px;padding:0 10px;border-radius:13px;
+  background:rgba(239,68,68,0.88);color:#fff;border:none;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
-  font-size:14px;font-weight:700;z-index:3;
+  font-size:11px;font-weight:700;letter-spacing:0.02em;z-index:3;
   -webkit-tap-highlight-color:transparent;
-  transition:background 0.15s;box-shadow:0 2px 8px rgba(239,68,68,0.3);
+  box-shadow:0 2px 8px rgba(239,68,68,0.3);
+  font-family:inherit;
 }
-.sig-clear-btn:hover{background:var(--danger)}
+.sig-clear-btn:active{background:var(--danger)}
 .sig-hint{font-size:11px;color:var(--text-3);line-height:1.4}
 
 /* ── Photo upload (min-height agar sejajar kanvas) ── */
@@ -622,14 +644,16 @@ select option{background:#fff;color:var(--text)}
 .photo-preview img{width:100%;height:auto;max-height:200px;object-fit:cover;border-radius:var(--radius);display:block}
 .btn-remove-photo{
   position:absolute;top:8px;right:8px;
-  width:28px;height:28px;border-radius:50%;
+  height:26px;padding:0 10px;border-radius:13px;
   background:rgba(239,68,68,0.9);color:#fff;border:none;
-  cursor:pointer;display:flex;align-items:center;justify-content:center;
-  font-size:16px;font-weight:700;z-index:3;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;letter-spacing:0.02em;
+  z-index:3;box-shadow:0 2px 8px rgba(239,68,68,0.3);
   -webkit-tap-highlight-color:transparent;
-  transition:background 0.15s;box-shadow:0 2px 8px rgba(239,68,68,0.3);
+  font-family:inherit;
 }
-.btn-remove-photo:hover{background:var(--danger)}
+.btn-remove-photo:active{background:var(--danger)}
 
 /* ── Section-box overflow guard ── */
 .section-box{

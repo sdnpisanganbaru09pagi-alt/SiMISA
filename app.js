@@ -514,6 +514,15 @@ function openBorrowModal(preSelectId) {
     populateSelects();
     _resetBorrowModal();
     if (preSelectId && el('borrowSelect')) el('borrowSelect').value = preSelectId;
+    // Show item info banner
+    const info = el('borrowItemInfo');
+    if (info && preSelectId) {
+      const item = state.items.find(x => x.id === preSelectId);
+      if (item) {
+        info.innerHTML = `<div class="modal-item-info-text"><div class="modal-item-info-name">${escapeHtml(item.name)}</div>${item.category ? `<div class="modal-item-info-cat">${escapeHtml(item.category)}</div>` : ''}</div>`;
+        info.classList.add('visible');
+      }
+    }
     // init signature pad lazily
     if (!window.__borrowSignPad && el('borrowSign')) {
       window.__borrowSignPad = makeSignaturePad('borrowSign', 'clearBorrowSign');
@@ -521,20 +530,31 @@ function openBorrowModal(preSelectId) {
   });
 }
 
-function closeBorrowModal() { _closeModal('borrowModal'); }
+function closeBorrowModal() { _closeModal('borrowModal'); const info=el('borrowItemInfo'); if(info){info.innerHTML='';info.classList.remove('visible');} }
+function guardCloseBorrow() { showConfirm('Batalkan pengisian data? Data yang sudah diisi akan hilang.', closeBorrowModal); }
 
 function openReturnModal(preSelectId) {
   _openModal('returnModal', () => {
     populateSelects();
     _resetReturnModal();
     if (preSelectId && el('returnSelect')) el('returnSelect').value = preSelectId;
+    // Show item info banner
+    const info = el('returnItemInfo');
+    if (info && preSelectId) {
+      const item = state.items.find(x => x.id === preSelectId);
+      if (item) {
+        info.innerHTML = `<div class="modal-item-info-text"><div class="modal-item-info-name">${escapeHtml(item.name)}</div>${item.borrowedBy ? `<div class="modal-item-info-cat">Dipinjam oleh: ${escapeHtml(item.borrowedBy)}</div>` : ''}</div>`;
+        info.classList.add('visible');
+      }
+    }
     if (!window.__returnSignPad && el('returnSign')) {
       window.__returnSignPad = makeSignaturePad('returnSign', 'clearReturnSign');
     }
   });
 }
 
-function closeReturnModal() { _closeModal('returnModal'); }
+function closeReturnModal() { _closeModal('returnModal'); const info=el('returnItemInfo'); if(info){info.innerHTML='';info.classList.remove('visible');} }
+function guardCloseReturn() { showConfirm('Batalkan pengisian data? Data yang sudah diisi akan hilang.', closeReturnModal); }
 
 
 /* --- UI rendering with chunking and cancellation tokens --- */
@@ -943,7 +963,7 @@ function injectSignatureUI(formId, canvasId, clearBtnId) {
     </div>
     <div class="sig-canvas-wrap">
       <canvas id="${canvasId}"></canvas>
-      <button type="button" id="${clearBtnId}" class="sig-clear-btn" title="Hapus tanda tangan">✕</button>
+      <button type="button" id="${clearBtnId}" class="sig-clear-btn">Hapus</button>
     </div>
     <span class="sig-hint">Gunakan jari atau stylus untuk menandatangani</span>
   `;
@@ -968,15 +988,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Close buttons
   const closeBorrow = el('closeBorrowModal');
-  if (closeBorrow) closeBorrow.addEventListener('click', closeBorrowModal);
+  if (closeBorrow) closeBorrow.addEventListener('click', guardCloseBorrow);
   const closeReturn = el('closeReturnModal');
-  if (closeReturn) closeReturn.addEventListener('click', closeReturnModal);
+  if (closeReturn) closeReturn.addEventListener('click', guardCloseReturn);
 
   // Batal buttons
   const cancelBorrow = el('cancelBorrowBtn');
-  if (cancelBorrow) cancelBorrow.addEventListener('click', closeBorrowModal);
+  if (cancelBorrow) cancelBorrow.addEventListener('click', guardCloseBorrow);
   const cancelReturn = el('cancelReturnBtn');
-  if (cancelReturn) cancelReturn.addEventListener('click', closeReturnModal);
+  if (cancelReturn) cancelReturn.addEventListener('click', guardCloseReturn);
 
   // Backdrop click closes modal
   ['borrowModal','returnModal'].forEach(modalId => {
@@ -985,8 +1005,8 @@ document.addEventListener('DOMContentLoaded', () => {
     modal.addEventListener('click', e => {
       // Only close if clicking directly on the overlay (not on the card)
       if (e.target === modal) {
-        if (modalId === 'borrowModal') closeBorrowModal();
-        else closeReturnModal();
+        if (modalId === 'borrowModal') guardCloseBorrow();
+        else guardCloseReturn();
       }
     });
   });
@@ -1787,14 +1807,16 @@ function enhancePhotoPreview(containerId, inputId, previewId) {
                 const removeBtn = document.createElement('button');
                 removeBtn.type = 'button';
                 removeBtn.className = 'btn-remove-photo';
-                removeBtn.innerHTML = '&times;';
+                removeBtn.textContent = 'Hapus';
                 removeBtn.addEventListener('click', (ev) => {
                     ev.preventDefault();
                     ev.stopPropagation();
-                    inputEl.value = '';
-                    inputEl.dataset.photoId = ''; // clear stored photo reference
-                    previewEl.innerHTML = '';
-                    container.classList.remove('has-image');
+                    showConfirm('Hapus foto ini?', () => {
+                      inputEl.value = '';
+                      inputEl.dataset.photoId = '';
+                      previewEl.innerHTML = '';
+                      container.classList.remove('has-image');
+                    });
                 });
                 container.appendChild(removeBtn);
             }
