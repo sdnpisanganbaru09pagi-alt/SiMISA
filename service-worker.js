@@ -1,5 +1,5 @@
 // service-worker.js
-const CACHE_NAME = "simisa-cache-v31";
+const CACHE_NAME = "simisa-cache-v32";
 const urlsToCache = [
   "/",
   "/index.html",
@@ -7,11 +7,11 @@ const urlsToCache = [
   "/style.css",
   "/app.js",
   "/fallback.js",
+  "/jsQR.js",
   "/jspdf.umd.min.js",
   "/jspdf.plugin.autotable.min.js",
   "/icons/icon-192.png",
-  "/icons/icon-512.png",
-  "https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"
+  "/icons/icon-512.png"
 ];
 
 // Install: cache app shell

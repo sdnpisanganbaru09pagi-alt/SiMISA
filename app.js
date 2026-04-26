@@ -2506,44 +2506,50 @@ document.addEventListener('DOMContentLoaded', () => {
 
 /* ══════════════════════════════════════════════
    QR SCANNER — Peminjaman & Pengembalian
-   Uses jsQR (loaded via CDN in index.html)
+   jsQR loaded locally as jsQR.js
    ══════════════════════════════════════════════ */
 
-(function() {
+const QRScanner = (() => {
   let activeStream = null;
   let scanRafId    = null;
+  let scannerMode  = null; // 'borrow' | 'return'
 
-  /* ── Stop camera cleanly ── */
-  function stopScanner(videoEl, canvasEl, containerEl) {
-    if (scanRafId) { cancelAnimationFrame(scanRafId); scanRafId = null; }
-    if (activeStream) { activeStream.getTracks().forEach(t => t.stop()); activeStream = null; }
-    if (videoEl)    { videoEl.srcObject = null; }
-    if (containerEl){ containerEl.style.display = 'none'; }
+  function getJsQR() {
+    // jsQR bundles as UMD — may be window.jsQR or module.exports style
+    return (typeof jsQR !== 'undefined' && jsQR) ||
+           (typeof window.jsQR !== 'undefined' && window.jsQR) ||
+           null;
   }
 
-  /* ── Parse QR payload → item id ── */
-  function parseQrPayload(raw) {
+  function stopAll() {
+    if (scanRafId) { cancelAnimationFrame(scanRafId); scanRafId = null; }
+    if (activeStream) { activeStream.getTracks().forEach(t => t.stop()); activeStream = null; }
+    if (scannerMode) {
+      const v = el(scannerMode + 'QrVideo');
+      const c = el(scannerMode + 'QrScanner');
+      const b = el(scannerMode + 'ScanQrBtn');
+      if (v) v.srcObject = null;
+      if (c) c.style.display = 'none';
+      if (b) b.style.display = '';
+      scannerMode = null;
+    }
+  }
+
+  function parseQr(raw) {
     try {
-      const data = JSON.parse(raw);
-      if (data && data.type === 'simisa-item' && data.id) return data.id;
+      const d = JSON.parse(raw);
+      if (d && d.type === 'simisa-item' && d.id) return d.id;
     } catch(e) {}
-    // fallback: bare item id string
     if (typeof raw === 'string' && raw.startsWith('itm-')) return raw.trim();
     return null;
   }
 
-  /* ── Apply scan result to a modal ── */
-  function applyScannedItem(itemId, mode) {
-    // mode: 'borrow' | 'return'
-    const selectEl  = el(mode === 'borrow' ? 'borrowSelect' : 'returnSelect');
-    const infoEl    = el(mode === 'borrow' ? 'borrowItemInfo' : 'returnItemInfo');
+  function applyItem(itemId, mode) {
+    const selectEl = el(mode === 'borrow' ? 'borrowSelect' : 'returnSelect');
+    const infoEl   = el(mode === 'borrow' ? 'borrowItemInfo' : 'returnItemInfo');
+    const item     = state.items.find(x => x.id === itemId);
 
-    const item = state.items.find(x => x.id === itemId);
-    if (!item) {
-      showToast('Barang tidak ditemukan di database', 'warning');
-      return false;
-    }
-
+    if (!item) { showToast('Barang tidak ditemukan', 'warning'); return false; }
     if (mode === 'borrow' && item.status !== 'available') {
       showToast(`"${item.name}" sedang dipinjam oleh ${item.borrowedBy || 'seseorang'}`, 'warning');
       return false;
@@ -2553,51 +2559,43 @@ document.addEventListener('DOMContentLoaded', () => {
       return false;
     }
 
-    // Set dropdown value
     if (selectEl) selectEl.value = itemId;
-
-    // Show info banner
     if (infoEl) {
-      if (mode === 'borrow') {
-        infoEl.innerHTML = `<div class="modal-item-info-text">
-          <div class="modal-item-info-name">${escapeHtml(item.name)}</div>
-          ${item.category ? `<div class="modal-item-info-cat">${escapeHtml(item.category)}</div>` : ''}
-        </div>`;
-      } else {
-        infoEl.innerHTML = `<div class="modal-item-info-text">
-          <div class="modal-item-info-name">${escapeHtml(item.name)}</div>
-          ${item.borrowedBy ? `<div class="modal-item-info-cat">Dipinjam oleh: ${escapeHtml(item.borrowedBy)}</div>` : ''}
-        </div>`;
-      }
+      infoEl.innerHTML = `<div class="modal-item-info-text">
+        <div class="modal-item-info-name">${escapeHtml(item.name)}</div>
+        <div class="modal-item-info-cat">${
+          mode === 'borrow'
+            ? (item.category ? escapeHtml(item.category) : '')
+            : (item.borrowedBy ? 'Dipinjam oleh: ' + escapeHtml(item.borrowedBy) : '')
+        }</div>
+      </div>`;
       infoEl.classList.add('visible');
     }
     return true;
   }
 
-  /* ── Start scanner for a given modal ── */
-  async function startScanner(mode) {
-    const videoId     = mode + 'QrVideo';
-    const canvasId    = mode + 'QrCanvas';
-    const containerId = mode + 'QrScanner';
-    const scanBtnId   = mode + 'ScanQrBtn';
-    const cancelBtnId = mode + 'ScanCancelBtn';
+  async function start(mode) {
+    const lib = getJsQR();
+    if (!lib) {
+      showToast('Library QR tidak ditemukan, pastikan jsQR.js ada di folder yang sama', 'danger');
+      console.error('jsQR not found. window.jsQR=', window.jsQR, 'typeof jsQR=', typeof jsQR);
+      return;
+    }
 
-    const videoEl     = el(videoId);
-    const canvasEl    = el(canvasId);
-    const containerEl = el(containerId);
-    const scanBtnEl   = el(scanBtnId);
+    stopAll();
+    scannerMode = mode;
 
-    if (!videoEl || !canvasEl || !containerEl) return;
-    if (!window.jsQR) { showToast('Library scanner belum siap, coba lagi', 'warning'); return; }
+    const videoEl     = el(mode + 'QrVideo');
+    const canvasEl    = el(mode + 'QrCanvas');
+    const containerEl = el(mode + 'QrScanner');
+    const scanBtnEl   = el(mode + 'ScanQrBtn');
 
-    // Stop any existing scanner
-    stopScanner(videoEl, canvasEl, containerEl);
+    if (!videoEl || !canvasEl || !containerEl) {
+      console.error('QR scanner elements not found for mode:', mode);
+      return;
+    }
 
-    // Show container, hide scan button
-    containerEl.style.display = 'block';
-    if (scanBtnEl) scanBtnEl.style.display = 'none';
-
-    // Add scanning line element if not present
+    // Add scan line if missing
     const frame = containerEl.querySelector('.qr-scanner-frame');
     if (frame && !frame.querySelector('.scan-line')) {
       const line = document.createElement('div');
@@ -2605,113 +2603,88 @@ document.addEventListener('DOMContentLoaded', () => {
       frame.appendChild(line);
     }
 
-    // Scroll into view
+    containerEl.style.display = 'block';
+    containerEl.classList.remove('qr-success');
+    if (scanBtnEl) scanBtnEl.style.display = 'none';
+
     setTimeout(() => containerEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
       });
       activeStream = stream;
       videoEl.srcObject = stream;
       await videoEl.play();
     } catch(err) {
-      console.error('Camera error:', err);
-      showToast('Tidak dapat mengakses kamera', 'danger');
-      stopScanner(videoEl, canvasEl, containerEl);
-      if (scanBtnEl) scanBtnEl.style.display = '';
+      console.error('Camera access failed:', err);
+      const msg = err.name === 'NotAllowedError'
+        ? 'Izin kamera ditolak. Izinkan akses kamera di browser.'
+        : 'Tidak dapat membuka kamera: ' + err.message;
+      showToast(msg, 'danger');
+      stopAll();
       return;
     }
 
     const ctx = canvasEl.getContext('2d');
-    let lastScan = 0;
+    let lastTs = 0;
 
-    function tick() {
-      if (videoEl.readyState === videoEl.HAVE_ENOUGH_DATA) {
-        const now = Date.now();
-        if (now - lastScan < 200) { scanRafId = requestAnimationFrame(tick); return; } // throttle ~5fps
-        lastScan = now;
+    function tick(ts) {
+      if (videoEl.readyState < videoEl.HAVE_ENOUGH_DATA) {
+        scanRafId = requestAnimationFrame(tick);
+        return;
+      }
+      // throttle to ~8fps to save battery
+      if (ts - lastTs < 125) { scanRafId = requestAnimationFrame(tick); return; }
+      lastTs = ts;
 
-        canvasEl.width  = videoEl.videoWidth;
-        canvasEl.height = videoEl.videoHeight;
-        ctx.drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
+      canvasEl.width  = videoEl.videoWidth;
+      canvasEl.height = videoEl.videoHeight;
+      ctx.drawImage(videoEl, 0, 0);
 
-        const imageData = ctx.getImageData(0, 0, canvasEl.width, canvasEl.height);
-        const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: 'dontInvert'
-        });
+      const imgData = ctx.getImageData(0, 0, canvasEl.width, canvasEl.height);
+      const code = lib(imgData.data, imgData.width, imgData.height, { inversionAttempts: 'dontInvert' });
 
-        if (code) {
-          const itemId = parseQrPayload(code.data);
-          if (itemId) {
-            // Flash success
-            containerEl.classList.add('qr-success');
-
-            const ok = applyScannedItem(itemId, mode);
-            stopScanner(videoEl, canvasEl, containerEl);
-            if (scanBtnEl) scanBtnEl.style.display = '';
-
-            if (ok) {
-              showToast('✅ Barang berhasil diidentifikasi', 'success');
-              // Scroll modal body to name field
-              setTimeout(() => {
-                const body = el(mode + 'Modal')?.querySelector('.form-modal-body');
-                if (body) body.scrollTo({ top: 0, behavior: 'smooth' });
-              }, 300);
-            }
-            return;
+      if (code) {
+        const itemId = parseQr(code.data);
+        if (itemId) {
+          containerEl.classList.add('qr-success');
+          const ok = applyItem(itemId, mode);
+          stopAll();
+          if (ok) {
+            showToast('Barang berhasil diidentifikasi', 'success');
+            setTimeout(() => {
+              const body = el(mode + 'Modal')?.querySelector('.form-modal-body');
+              if (body) body.scrollTo({ top: 0, behavior: 'smooth' });
+            }, 200);
           }
+          return;
         }
       }
+
       scanRafId = requestAnimationFrame(tick);
     }
     scanRafId = requestAnimationFrame(tick);
   }
 
-  /* ── Wire up buttons after DOM ready ── */
-  document.addEventListener('DOMContentLoaded', () => {
+  function init() {
     ['borrow', 'return'].forEach(mode => {
-      // Scan button
-      const scanBtn = el(mode + 'ScanQrBtn');
-      if (scanBtn) {
-        scanBtn.addEventListener('click', () => startScanner(mode));
-      }
-
-      // Cancel button
+      const scanBtn   = el(mode + 'ScanQrBtn');
       const cancelBtn = el(mode + 'ScanCancelBtn');
-      if (cancelBtn) {
-        cancelBtn.addEventListener('click', () => {
-          const videoEl     = el(mode + 'QrVideo');
-          const canvasEl    = el(mode + 'QrCanvas');
-          const containerEl = el(mode + 'QrScanner');
-          const scanBtnEl   = el(mode + 'ScanQrBtn');
-          stopScanner(videoEl, canvasEl, containerEl);
-          if (scanBtnEl) scanBtnEl.style.display = '';
-        });
-      }
+      if (scanBtn)   scanBtn.addEventListener('click',   () => start(mode));
+      if (cancelBtn) cancelBtn.addEventListener('click', () => stopAll());
     });
+  }
 
-    // Stop camera when modals close
-    document.addEventListener('click', e => {
-      const closeIds = ['closeBorrowModal','cancelBorrowBtn','closeReturnModal','cancelReturnBtn'];
-      if (closeIds.includes(e.target.id) || e.target.closest('[id$="Modal"]') === null) return;
-      // handled by guardClose functions; just stop scanner if active
-    });
-  });
-
-  // Also stop scanner when modal closes via overlay/button
-  const origCloseBorrow = window.closeBorrowModal;
-  const origCloseReturn = window.closeReturnModal;
-
-  window.closeBorrowModal = function() {
-    stopScanner(el('borrowQrVideo'), el('borrowQrCanvas'), el('borrowQrScanner'));
-    const sb = el('borrowScanQrBtn'); if (sb) sb.style.display = '';
-    if (origCloseBorrow) origCloseBorrow();
-  };
-  window.closeReturnModal = function() {
-    stopScanner(el('returnQrVideo'), el('returnQrCanvas'), el('returnQrScanner'));
-    const sb = el('returnScanQrBtn'); if (sb) sb.style.display = '';
-    if (origCloseReturn) origCloseReturn();
-  };
-
+  return { init, stopAll, start };
 })();
+
+// Patch close functions to stop camera
+(function() {
+  const _closeBorrow = window.closeBorrowModal;
+  const _closeReturn = window.closeReturnModal;
+  window.closeBorrowModal = function() { QRScanner.stopAll(); if (_closeBorrow) _closeBorrow(); };
+  window.closeReturnModal = function() { QRScanner.stopAll(); if (_closeReturn) _closeReturn(); };
+})();
+
+document.addEventListener('DOMContentLoaded', () => QRScanner.init());
