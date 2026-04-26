@@ -491,98 +491,6 @@ async function downloadItemQrPdf(item){
   const fileBase = sanitizeFilename(item.name || item.id);
   doc.save(`QR_${fileBase}.pdf`);
 }
-function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight){
-  const value = (text || '-').toString();
-  const words = value.split(' ');
-  let line = '';
-  let currentY = y;
-  for(let i=0;i<words.length;i++){
-    const testLine = line ? `${line} ${words[i]}` : words[i];
-    const testWidth = ctx.measureText(testLine).width;
-    if(testWidth > maxWidth && line){
-      ctx.fillText(line, x, currentY);
-      line = words[i];
-      currentY += lineHeight;
-    } else {
-      line = testLine;
-    }
-  }
-  if(line){
-    ctx.fillText(line, x, currentY);
-    currentY += lineHeight;
-  }
-  return currentY;
-}
-async function downloadItemQrPngCard(item){
-  const qrDataUrl = await fetchAsDataUrl(getItemQrImageUrl(item, 900));
-  const qrImage = new Image();
-  qrImage.src = qrDataUrl;
-  await new Promise((resolve, reject) => {
-    qrImage.onload = resolve;
-    qrImage.onerror = () => reject(new Error('Gagal memuat gambar QR'));
-  });
-
-  const canvas = document.createElement('canvas');
-  canvas.width = 1200;
-  canvas.height = 1600;
-  const ctx = canvas.getContext('2d');
-
-  // background card
-  ctx.fillStyle = '#f3f4f6';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#ffffff';
-  ctx.strokeStyle = '#e5e7eb';
-  ctx.lineWidth = 3;
-  const cardX = 80;
-  const cardY = 80;
-  const cardW = canvas.width - 160;
-  const cardH = canvas.height - 160;
-  ctx.fillRect(cardX, cardY, cardW, cardH);
-  ctx.strokeRect(cardX, cardY, cardW, cardH);
-
-  // title
-  ctx.fillStyle = '#111827';
-  ctx.font = 'bold 56px Arial';
-  ctx.textAlign = 'center';
-  ctx.fillText('QR Barang SiMISA', canvas.width / 2, 180);
-
-  // info text
-  ctx.textAlign = 'left';
-  const infoX = cardX + 70;
-  const infoW = cardW - 140;
-  let nextY = 280;
-  ctx.fillStyle = '#374151';
-  ctx.font = 'bold 34px Arial';
-  ctx.fillText('Nama Barang', infoX, nextY);
-  ctx.font = '30px Arial';
-  nextY = drawWrappedText(ctx, item.name || '-', infoX, nextY + 46, infoW, 40) + 26;
-
-  ctx.font = 'bold 34px Arial';
-  ctx.fillText('Kategori', infoX, nextY);
-  ctx.font = '30px Arial';
-  nextY = drawWrappedText(ctx, item.category || '-', infoX, nextY + 46, infoW, 40) + 26;
-
-  ctx.font = 'bold 34px Arial';
-  ctx.fillText('Detail Barang', infoX, nextY);
-  ctx.font = '30px Arial';
-  nextY = drawWrappedText(ctx, item.desc || '-', infoX, nextY + 46, infoW, 40) + 20;
-
-  ctx.font = '24px Arial';
-  ctx.fillStyle = '#6b7280';
-  ctx.fillText(`ID: ${item.id}`, infoX, nextY + 20);
-
-  // qr image
-  const qrSize = 560;
-  const qrX = (canvas.width - qrSize) / 2;
-  const qrY = 900;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(qrX - 20, qrY - 20, qrSize + 40, qrSize + 40);
-  ctx.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
-
-  const pngDataUrl = canvas.toDataURL('image/png');
-  const fileBase = sanitizeFilename(item.name || item.id);
-  downloadUrl(`QR_${fileBase}.png`, pngDataUrl);
-}
 function printItemQr(item){
   const qrImageUrl = getItemQrImageUrl(item, 900);
   const win = window.open('', '_blank');
@@ -647,12 +555,9 @@ function openQrModal(item){
   modal.addEventListener('click', e => { if(e.target === modal) close(); });
   modal.querySelector('#closeQrModal').addEventListener('click', close);
   modal.querySelector('#downloadQrPngBtn').addEventListener('click', () => {
-    downloadItemQrPngCard(item).then(() => {
-      showToast('QR PNG diunduh', 'success');
-    }).catch(err => {
-      console.error(err);
-      showToast(err.message || 'Gagal membuat PNG QR', 'danger');
-    });
+    const fileBase = sanitizeFilename(item.name || item.id);
+    downloadUrl(`QR_${fileBase}.png`, qrImageUrl);
+    showToast('QR PNG diunduh', 'success');
   });
   modal.querySelector('#downloadQrPdfBtn').addEventListener('click', async () => {
     try{
