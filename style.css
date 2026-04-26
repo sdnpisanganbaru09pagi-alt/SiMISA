@@ -538,6 +538,60 @@ select option{background:#fff;color:var(--text)}
   padding-bottom:calc(20px + env(safe-area-inset-bottom));
 }
 
+/* Quick scanner modal — tuned to look like SiMERY scanner sheet */
+.scan-modal-sheet{
+  max-width:440px;
+  border:1px solid rgba(14,165,233,0.2);
+  box-shadow:
+    0 24px 56px rgba(14,165,233,.24),
+    0 8px 20px rgba(30,64,175,.16);
+}
+.scan-modal-sheet .form-modal-header{
+  background:linear-gradient(180deg, rgba(14,165,233,.12), rgba(14,165,233,.02));
+  border-bottom:1px solid rgba(14,165,233,0.14);
+}
+.scan-modal-title{
+  justify-content:flex-start;
+  gap:10px;
+  font-size:1rem;
+}
+.scan-modal-icon{
+  width:28px;
+  height:28px;
+  border-radius:9px;
+  display:grid;
+  place-items:center;
+  background:#fff;
+  box-shadow:0 3px 10px rgba(14,165,233,.28);
+  font-size:14px;
+}
+.scan-modal-body{
+  padding:14px 16px 16px;
+  background:linear-gradient(180deg, #f8fcff 0%, #ffffff 48%);
+}
+.scan-modal-subtitle{
+  margin:0 0 12px;
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid rgba(14,165,233,.18);
+  background:rgba(14,165,233,.06);
+  color:var(--text-2);
+  font-size:12px;
+  line-height:1.45;
+}
+.scan-modal-body .qr-cancel-btn{
+  position:static;
+  transform:none;
+  left:auto;
+  bottom:auto;
+  width:100%;
+  margin-top:8px;
+  background:#fff;
+  color:var(--text-2);
+  border:1.5px solid rgba(14,165,233,.2);
+  backdrop-filter:none;
+}
+
 /* Modal item info banner */
 .modal-item-info{
   display:none;

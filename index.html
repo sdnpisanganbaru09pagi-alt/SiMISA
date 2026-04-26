@@ -324,10 +324,14 @@
 <div class="form-modal" id="quickScanModal" aria-modal="true" role="dialog" aria-labelledby="quickScanModalTitle">
   <div class="form-modal-sheet scan-modal-sheet">
     <div class="form-modal-header">
-      <div class="form-modal-title" id="quickScanModalTitle">Scan QR Cepat</div>
+      <div class="form-modal-title scan-modal-title" id="quickScanModalTitle">
+        <span class="scan-modal-icon" aria-hidden="true">📷</span>
+        <span>Scan QR Cepat</span>
+      </div>
       <button class="form-modal-close" id="quickScanCloseBtn" aria-label="Tutup">✕</button>
     </div>
     <div class="scan-modal-body">
+      <p class="scan-modal-subtitle">Arahkan kamera ke QR aset untuk otomatis buka form peminjaman / pengembalian.</p>
       <div id="quickQrScanner" class="qr-scanner-container" style="display:none;">
         <video id="quickQrVideo" class="qr-video" autoplay playsinline muted></video>
         <canvas id="quickQrCanvas" style="display:none;"></canvas>
