@@ -538,6 +538,60 @@ select option{background:#fff;color:var(--text)}
   padding-bottom:calc(20px + env(safe-area-inset-bottom));
 }
 
+/* Quick scanner modal — tuned to look like SiMERY scanner sheet */
+.scan-modal-sheet{
+  max-width:440px;
+  border:1px solid rgba(14,165,233,0.2);
+  box-shadow:
+    0 24px 56px rgba(14,165,233,.24),
+    0 8px 20px rgba(30,64,175,.16);
+}
+.scan-modal-sheet .form-modal-header{
+  background:linear-gradient(180deg, rgba(14,165,233,.12), rgba(14,165,233,.02));
+  border-bottom:1px solid rgba(14,165,233,0.14);
+}
+.scan-modal-title{
+  justify-content:flex-start;
+  gap:10px;
+  font-size:1rem;
+}
+.scan-modal-icon{
+  width:28px;
+  height:28px;
+  border-radius:9px;
+  display:grid;
+  place-items:center;
+  background:#fff;
+  box-shadow:0 3px 10px rgba(14,165,233,.28);
+  font-size:14px;
+}
+.scan-modal-body{
+  padding:14px 16px 16px;
+  background:linear-gradient(180deg, #f8fcff 0%, #ffffff 48%);
+}
+.scan-modal-subtitle{
+  margin:0 0 12px;
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid rgba(14,165,233,.18);
+  background:rgba(14,165,233,.06);
+  color:var(--text-2);
+  font-size:12px;
+  line-height:1.45;
+}
+.scan-modal-body .qr-cancel-btn{
+  position:static;
+  transform:none;
+  left:auto;
+  bottom:auto;
+  width:100%;
+  margin-top:8px;
+  background:#fff;
+  color:var(--text-2);
+  border:1.5px solid rgba(14,165,233,.2);
+  backdrop-filter:none;
+}
+
 /* Modal item info banner */
 .modal-item-info{
   display:none;
@@ -684,9 +738,10 @@ label[for],
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 16px;
-  border: none;
-  border-radius: calc(var(--radius-md) + 2px);
+  padding: 15px 16px;
+  min-height: 64px;
+  border: 1.5px solid rgba(255,255,255,.28);
+  border-radius: 18px;
   color: #fff;
   font-weight: 700;
   font-size: 14px;
@@ -696,12 +751,15 @@ label[for],
   margin-bottom: 12px;
   transition: transform .12s ease, box-shadow .2s ease, filter .2s ease, opacity .2s ease;
   box-shadow:
-    0 10px 22px color-mix(in srgb, var(--primary) 36%, transparent),
-    inset 0 0 0 1px rgba(255,255,255,.22);
+    0 16px 30px rgba(37,99,235,.32),
+    0 4px 12px rgba(79,70,229,.28),
+    inset 0 1px 0 rgba(255,255,255,.32);
   letter-spacing: .15px;
   text-align: left;
   position: relative;
   overflow: hidden;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 .qr-scan-btn::after{
   content:'';
@@ -753,6 +811,13 @@ label[for],
 .qr-scan-btn:active {
   opacity: .95;
   transform: translateY(1px) scale(.995);
+}
+.qr-scan-btn:hover{
+  transform: translateY(-1px);
+  box-shadow:
+    0 18px 32px rgba(37,99,235,.35),
+    0 6px 14px rgba(79,70,229,.3),
+    inset 0 1px 0 rgba(255,255,255,.35);
 }
 @keyframes qrShine{
   0%, 72%{ left:-35%; opacity:0; }
