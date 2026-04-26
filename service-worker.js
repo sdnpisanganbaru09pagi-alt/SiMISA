@@ -1,5 +1,5 @@
 // service-worker.js
-const CACHE_NAME = "simisa-cache-v38";
+const CACHE_NAME = "simisa-cache-v39";
 const urlsToCache = [
   "/",
   "/index.html",
