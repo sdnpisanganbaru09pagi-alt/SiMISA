@@ -2545,11 +2545,22 @@ const QRScanner = (() => {
   }
 
   function applyItem(itemId, mode) {
-    const selectEl = el(mode === 'borrow' ? 'borrowSelect' : 'returnSelect');
-    const infoEl   = el(mode === 'borrow' ? 'borrowItemInfo' : 'returnItemInfo');
     const item     = state.items.find(x => x.id === itemId);
 
     if (!item) { showToast('Barang tidak ditemukan', 'warning'); return false; }
+    if (mode === 'quick') {
+      if (item.status === 'available') {
+        openBorrowModal(itemId);
+        showToast(`QR dikenali: lanjut proses peminjaman "${item.name}"`, 'success');
+      } else {
+        openReturnModal(itemId);
+        showToast(`QR dikenali: lanjut proses pengembalian "${item.name}"`, 'success');
+      }
+      return true;
+    }
+
+    const selectEl = el(mode === 'borrow' ? 'borrowSelect' : 'returnSelect');
+    const infoEl   = el(mode === 'borrow' ? 'borrowItemInfo' : 'returnItemInfo');
     if (mode === 'borrow' && item.status !== 'available') {
       showToast(`"${item.name}" sedang dipinjam oleh ${item.borrowedBy || 'seseorang'}`, 'warning');
       return false;
@@ -2652,11 +2663,13 @@ const QRScanner = (() => {
           const ok = applyItem(itemId, mode);
           stopAll();
           if (ok) {
-            showToast('Barang berhasil diidentifikasi', 'success');
-            setTimeout(() => {
-              const body = el(mode + 'Modal')?.querySelector('.form-modal-body');
-              if (body) body.scrollTo({ top: 0, behavior: 'smooth' });
-            }, 200);
+            if (mode !== 'quick') {
+              showToast('Barang berhasil diidentifikasi', 'success');
+              setTimeout(() => {
+                const body = el(mode + 'Modal')?.querySelector('.form-modal-body');
+                if (body) body.scrollTo({ top: 0, behavior: 'smooth' });
+              }, 200);
+            }
           }
           return;
         }
@@ -2668,7 +2681,7 @@ const QRScanner = (() => {
   }
 
   function init() {
-    ['borrow', 'return'].forEach(mode => {
+    ['borrow', 'return', 'quick'].forEach(mode => {
       const scanBtn   = el(mode + 'ScanQrBtn');
       const cancelBtn = el(mode + 'ScanCancelBtn');
       if (scanBtn)   scanBtn.addEventListener('click',   () => start(mode));
