@@ -352,6 +352,27 @@
 
 </div><!-- /.app -->
 
+<!-- ══ Modal Quick QR Scan ══ -->
+<div class="form-modal" id="quickScanModal" aria-modal="true" role="dialog" aria-labelledby="quickScanModalTitle">
+  <div class="form-modal-sheet scan-modal-sheet">
+    <div class="form-modal-header">
+      <div class="form-modal-title" id="quickScanModalTitle">Scan QR Cepat</div>
+      <button class="form-modal-close" id="quickScanCloseBtn" aria-label="Tutup">✕</button>
+    </div>
+    <div class="scan-modal-body">
+      <div id="quickQrScanner" class="qr-scanner-container" style="display:none;">
+        <video id="quickQrVideo" class="qr-video" autoplay playsinline muted></video>
+        <canvas id="quickQrCanvas" style="display:none;"></canvas>
+        <div class="qr-scanner-overlay">
+          <div class="qr-scanner-frame"></div>
+          <p class="qr-scanner-hint">Scan QR untuk otomatis pilih aksi</p>
+        </div>
+      </div>
+      <button class="btn ghost qr-cancel-btn" type="button" id="quickScanCancelBtn">Batal Scan</button>
+    </div>
+  </div>
+</div>
+
 <!-- Progress overlay -->
 <div id="progressOverlay" style="display:none;">
   <div>

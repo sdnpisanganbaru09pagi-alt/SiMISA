@@ -1009,14 +1009,14 @@ function _openModal(modalId, setupFn) {
   if (!modal) return;
   if (setupFn) setupFn();
   modal.classList.add('is-open');
-  document.body.style.overflow = 'hidden';
+  document.body.style.overflow = document.querySelector('.form-modal.is-open') ? 'hidden' : '';
 }
 
 function _closeModal(modalId) {
   const modal = el(modalId);
   if (!modal) return;
   modal.classList.remove('is-open');
-  document.body.style.overflow = '';
+  document.body.style.overflow = document.querySelector('.form-modal.is-open') ? 'hidden' : '';
 }
 
 function openBorrowModal(preSelectId) {
@@ -1512,14 +1512,15 @@ document.addEventListener('DOMContentLoaded', () => {
   if (cancelReturn) cancelReturn.addEventListener('click', guardCloseReturn);
 
   // Backdrop click closes modal
-  ['borrowModal','returnModal'].forEach(modalId => {
+  ['borrowModal','returnModal','quickScanModal'].forEach(modalId => {
     const modal = el(modalId);
     if (!modal) return;
     modal.addEventListener('click', e => {
       // Only close if clicking directly on the overlay (not on the card)
       if (e.target === modal) {
         if (modalId === 'borrowModal') guardCloseBorrow();
-        else guardCloseReturn();
+        else if (modalId === 'returnModal') guardCloseReturn();
+        else QRScanner.stopAll();
       }
     });
   });
@@ -2525,6 +2526,7 @@ const QRScanner = (() => {
     if (scanRafId) { cancelAnimationFrame(scanRafId); scanRafId = null; }
     if (activeStream) { activeStream.getTracks().forEach(t => t.stop()); activeStream = null; }
     if (scannerMode) {
+      if (scannerMode === 'quick') _closeModal('quickScanModal');
       const v = el(scannerMode + 'QrVideo');
       const c = el(scannerMode + 'QrScanner');
       const b = el(scannerMode + 'ScanQrBtn');
@@ -2595,6 +2597,7 @@ const QRScanner = (() => {
 
     stopAll();
     scannerMode = mode;
+    if (mode === 'quick') _openModal('quickScanModal');
 
     const videoEl     = el(mode + 'QrVideo');
     const canvasEl    = el(mode + 'QrCanvas');
@@ -2687,6 +2690,8 @@ const QRScanner = (() => {
       if (scanBtn)   scanBtn.addEventListener('click',   () => start(mode));
       if (cancelBtn) cancelBtn.addEventListener('click', () => stopAll());
     });
+    const quickCloseBtn = el('quickScanCloseBtn');
+    if (quickCloseBtn) quickCloseBtn.addEventListener('click', () => stopAll());
   }
 
   return { init, stopAll, start };
