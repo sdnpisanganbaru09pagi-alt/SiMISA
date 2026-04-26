@@ -476,18 +476,130 @@ async function fetchAsDataUrl(url){
 async function downloadItemQrPdf(item){
   const { jsPDF } = window.jspdf;
   if(!jsPDF) throw new Error('Library PDF tidak tersedia');
-  const qrImageUrl = getItemQrImageUrl(item);
+  const qrImageUrl = getItemQrImageUrl(item, 600);
   const qrDataUrl = await fetchAsDataUrl(qrImageUrl);
-  const doc = new jsPDF('portrait', 'mm', 'a4');
-  const pageW = doc.internal.pageSize.getWidth();
-  doc.setFontSize(18);
-  doc.text('QR Barang SiMISA', pageW / 2, 20, { align: 'center' });
-  doc.setFontSize(12);
-  doc.text(`Nama: ${item.name || '-'}`, 20, 34);
-  doc.text(`Kategori: ${item.category || '-'}`, 20, 42);
-  doc.text(`Detail: ${item.desc || '-'}`, 20, 50, { maxWidth: pageW - 40 });
-  doc.text(`ID: ${item.id}`, 20, 64);
-  doc.addImage(qrDataUrl, 'PNG', (pageW - 90) / 2, 72, 90, 90);
+
+  // Label size: 90mm × 60mm (business card landscape style)
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [90, 60] });
+  const W = 90, H = 60;
+
+  // ── Background ──
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(0, 0, W, H, 4, 4, 'F');
+
+  // ── Top header bar (gradient simulation via solid) ──
+  doc.setFillColor(108, 92, 231); // #6c5ce7
+  doc.roundedRect(0, 0, W, 14, 4, 4, 'F');
+  // cover bottom corners of header
+  doc.rect(0, 8, W, 6, 'F');
+
+  // Brand text
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('SiMISA', 6, 8.5);
+  doc.setFontSize(5.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text('SISTEM INVENTARIS SEKOLAH', 6, 12.5);
+
+  // "ASET" badge on right
+  doc.setFillColor(255, 255, 255, 50); // semi-transparent
+  doc.setFillColor(162, 155, 254); // #a29bfe
+  doc.roundedRect(W - 18, 4, 14, 7, 2, 2, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(5.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('ASET', W - 11, 8.6, { align: 'center' });
+
+  // ── QR Code ──
+  // Content zone: Y=16 to Y=50 (footer starts at 51) → max height = 34mm
+  const qrSize = 33;           // fits comfortably: 16+33 = 49 < 51
+  const qrX = 4;
+  const qrY = 16 + (34 - qrSize) / 2; // vertically centre in content zone
+  // QR border box
+  doc.setDrawColor(237, 233, 254); // #ede9fe
+  doc.setLineWidth(0.5);
+  doc.roundedRect(qrX - 1, qrY - 1, qrSize + 2, qrSize + 2, 2, 2, 'S');
+  doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+
+  // ── Item Info (right of QR) ──
+  const infoX = qrX + qrSize + 5;
+  const infoW = W - infoX - 4;
+
+  // Item name — start aligned with QR top
+  const infoStartY = qrY + 4;
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(17, 24, 39); // #111827
+  const nameLines = doc.splitTextToSize(item.name || '-', infoW);
+  doc.text(nameLines.slice(0, 2), infoX, infoStartY);
+
+  let yOff = infoStartY + (nameLines.length > 1 ? 10 : 6);
+
+  // Category
+  if(item.category){
+    doc.setFontSize(5.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(156, 163, 175); // #9ca3af
+    doc.text('KATEGORI', infoX, yOff);
+    yOff += 3.5;
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(55, 65, 81); // #374151
+    doc.text(doc.splitTextToSize(item.category, infoW)[0], infoX, yOff);
+    yOff += 5;
+  }
+
+  // Detail
+  if(item.desc){
+    doc.setFontSize(5.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(156, 163, 175);
+    doc.text('DETAIL', infoX, yOff);
+    yOff += 3.5;
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(55, 65, 81);
+    const descLines = doc.splitTextToSize(item.desc, infoW);
+    doc.text(descLines.slice(0, 2), infoX, yOff);
+    yOff += (descLines.length > 1 ? 8 : 5);
+  }
+
+  // ID chip
+  doc.setFontSize(5.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(156, 163, 175);
+  doc.text('ID BARANG', infoX, yOff);
+  yOff += 3.5;
+  doc.setFillColor(243, 244, 246); // #f3f4f6
+  const idText = item.id;
+  doc.roundedRect(infoX - 1, yOff - 3, Math.min(infoW, idText.length * 2.2 + 4), 5, 1, 1, 'F');
+  doc.setFontSize(6);
+  doc.setFont('courier', 'bold');
+  doc.setTextColor(107, 114, 128); // #6b7280
+  doc.text(idText, infoX + 0.5, yOff + 0.8);
+
+  // ── Footer ──
+  doc.setFillColor(249, 250, 251); // #f9fafb
+  doc.rect(0, H - 9, W, 9, 'F');
+  // footer top border
+  doc.setDrawColor(240, 240, 240);
+  doc.setLineWidth(0.3);
+  doc.line(0, H - 9, W, H - 9);
+
+  doc.setFontSize(6);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(156, 163, 175);
+  doc.text('Scan QR untuk info peminjaman aset sekolah', 5, H - 3.5);
+
+  // Decorative dots right
+  doc.setFillColor(108, 92, 231);
+  doc.circle(W - 12, H - 5, 1.5, 'F');
+  doc.setFillColor(162, 155, 254);
+  doc.circle(W - 7.5, H - 5, 1.5, 'F');
+  doc.setFillColor(237, 233, 254);
+  doc.circle(W - 3, H - 5, 1.5, 'F');
+
   const fileBase = sanitizeFilename(item.name || item.id);
   doc.save(`QR_${fileBase}.pdf`);
 }
@@ -499,28 +611,288 @@ function printItemQr(item){
     <!doctype html>
     <html>
       <head>
-        <title>Print QR ${escapeHtml(item.name || item.id)}</title>
+        <title>Print QR - ${escapeHtml(item.name || item.id)}</title>
         <style>
-          body{font-family:Arial,sans-serif;padding:24px;text-align:center;color:#111;}
-          img{width:280px;height:280px;display:block;margin:16px auto;}
-          .meta{font-size:14px;margin:6px 0;}
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+
+          body {
+            font-family: 'Inter', Arial, sans-serif;
+            background: #f3f4f6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 24px;
+          }
+
+          .page-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+          }
+
+          /* ── Label Card ── */
+          .label-card {
+            background: #fff;
+            border-radius: 20px;
+            width: 340px;
+            overflow: hidden;
+            box-shadow: 0 8px 30px rgba(0,0,0,.12);
+            page-break-inside: avoid;
+          }
+
+          /* Top accent bar with gradient */
+          .label-header {
+            background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%);
+            padding: 14px 20px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          }
+          .label-header .brand {
+            color: #fff;
+            font-size: 18px;
+            font-weight: 900;
+            letter-spacing: .5px;
+          }
+          .label-header .brand span {
+            font-weight: 400;
+            opacity: .85;
+            font-size: 11px;
+            display: block;
+            margin-top: 1px;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+          }
+          .label-header .badge {
+            background: rgba(255,255,255,.22);
+            color: #fff;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 3px 9px;
+            border-radius: 20px;
+            letter-spacing: .8px;
+            text-transform: uppercase;
+          }
+
+          /* Body */
+          .label-body {
+            padding: 18px 20px 20px;
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+          }
+
+          /* QR box */
+          .qr-box {
+            flex-shrink: 0;
+            background: #fff;
+            border: 2px solid #ede9fe;
+            border-radius: 12px;
+            padding: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .qr-box img {
+            width: 120px;
+            height: 120px;
+            display: block;
+          }
+
+          /* Info */
+          .info {
+            flex: 1;
+            min-width: 0;
+          }
+          .item-name {
+            font-size: 15px;
+            font-weight: 700;
+            color: #111827;
+            line-height: 1.3;
+            margin-bottom: 8px;
+            word-break: break-word;
+          }
+          .info-row {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 5px;
+          }
+          .info-label {
+            font-size: 9px;
+            font-weight: 600;
+            color: #9ca3af;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+          }
+          .info-value {
+            font-size: 12px;
+            font-weight: 500;
+            color: #374151;
+            word-break: break-word;
+          }
+
+          /* ID chip */
+          .id-chip {
+            display: inline-block;
+            background: #f3f4f6;
+            color: #6b7280;
+            font-size: 9.5px;
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 6px;
+            letter-spacing: .5px;
+            margin-top: 2px;
+          }
+
+          /* Footer stripe */
+          .label-footer {
+            background: #f9fafb;
+            border-top: 1px solid #f0f0f0;
+            padding: 8px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          }
+          .label-footer .scan-hint {
+            font-size: 9px;
+            color: #9ca3af;
+            font-weight: 500;
+          }
+          .label-footer .dots {
+            display: flex;
+            gap: 4px;
+          }
+          .label-footer .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #ede9fe;
+          }
+          .label-footer .dot:first-child { background: #6c5ce7; }
+          .label-footer .dot:nth-child(2) { background: #a29bfe; opacity:.7; }
+
+          /* ── 4-up grid for sticker sheet ── */
+          .sticker-sheet {
+            display: none;
+          }
+
+          /* Print rules */
+          @media print {
+            body { background: #fff; padding: 0; min-height: unset; }
+            .no-print { display: none !important; }
+
+            /* Single card - centered on page */
+            .page-wrapper { gap: 0; }
+            .label-card {
+              box-shadow: none;
+              border: 1px solid #e5e7eb;
+              border-radius: 16px;
+            }
+          }
+
+          /* Preview controls (screen only) */
+          .controls {
+            display: flex;
+            gap: 10px;
+          }
+          .btn-print {
+            background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+            color: #fff;
+            border: none;
+            padding: 12px 28px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            letter-spacing: .3px;
+            transition: opacity .15s;
+          }
+          .btn-print:hover { opacity: .88; }
+          .btn-close {
+            background: #f3f4f6;
+            color: #374151;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+          }
+          .preview-note {
+            font-size: 12px;
+            color: #9ca3af;
+            font-family: 'Inter', Arial, sans-serif;
+          }
         </style>
       </head>
       <body>
-        <h2>QR Barang SiMISA</h2>
-        <div class="meta"><strong>Nama:</strong> ${escapeHtml(item.name || '-')}</div>
-        <div class="meta"><strong>Kategori:</strong> ${escapeHtml(item.category || '-')}</div>
-        <div class="meta"><strong>Detail:</strong> ${escapeHtml(item.desc || '-')}</div>
-        <div class="meta"><strong>ID:</strong> ${escapeHtml(item.id)}</div>
-        <img src="${qrImageUrl}" alt="QR ${escapeHtml(item.name || item.id)}" />
+        <div class="page-wrapper">
+          <!-- Label card -->
+          <div class="label-card">
+            <div class="label-header">
+              <div class="brand">
+                SiMISA
+                <span>Sistem Inventaris Sekolah</span>
+              </div>
+              <div class="badge">Aset</div>
+            </div>
+
+            <div class="label-body">
+              <div class="qr-box">
+                <img src="${qrImageUrl}" alt="QR ${escapeHtml(item.name || item.id)}" />
+              </div>
+              <div class="info">
+                <div class="item-name">${escapeHtml(item.name || '-')}</div>
+
+                ${item.category ? `
+                <div class="info-row">
+                  <span class="info-label">Kategori</span>
+                  <span class="info-value">${escapeHtml(item.category)}</span>
+                </div>` : ''}
+
+                ${item.desc ? `
+                <div class="info-row">
+                  <span class="info-label">Detail</span>
+                  <span class="info-value">${escapeHtml(item.desc)}</span>
+                </div>` : ''}
+
+                <div class="info-row" style="margin-top:6px;">
+                  <span class="info-label">ID Barang</span>
+                  <span class="id-chip">${escapeHtml(item.id)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="label-footer">
+              <span class="scan-hint">📷 Scan QR untuk info peminjaman</span>
+              <div class="dots">
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Controls (hidden on print) -->
+          <div class="controls no-print">
+            <button class="btn-print" onclick="window.print()">🖨️ Cetak Label</button>
+            <button class="btn-close" onclick="window.close()">Tutup</button>
+          </div>
+          <div class="preview-note no-print">Preview label · ukuran cetak ~9×6 cm</div>
+        </div>
       </body>
     </html>
   `);
   win.document.close();
   win.focus();
-  setTimeout(() => {
-    win.print();
-  }, 400);
+  setTimeout(() => { win.print(); }, 800);
 }
 function openQrModal(item){
   const existing = document.getElementById('qrItemModal');
@@ -2131,3 +2503,215 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }, 100);
 });
+
+/* ══════════════════════════════════════════════
+   QR SCANNER — Peminjaman & Pengembalian
+   Uses jsQR (loaded via CDN in index.html)
+   ══════════════════════════════════════════════ */
+
+(function() {
+  let activeStream = null;
+  let scanRafId    = null;
+
+  /* ── Stop camera cleanly ── */
+  function stopScanner(videoEl, canvasEl, containerEl) {
+    if (scanRafId) { cancelAnimationFrame(scanRafId); scanRafId = null; }
+    if (activeStream) { activeStream.getTracks().forEach(t => t.stop()); activeStream = null; }
+    if (videoEl)    { videoEl.srcObject = null; }
+    if (containerEl){ containerEl.style.display = 'none'; }
+  }
+
+  /* ── Parse QR payload → item id ── */
+  function parseQrPayload(raw) {
+    try {
+      const data = JSON.parse(raw);
+      if (data && data.type === 'simisa-item' && data.id) return data.id;
+    } catch(e) {}
+    // fallback: bare item id string
+    if (typeof raw === 'string' && raw.startsWith('itm-')) return raw.trim();
+    return null;
+  }
+
+  /* ── Apply scan result to a modal ── */
+  function applyScannedItem(itemId, mode) {
+    // mode: 'borrow' | 'return'
+    const selectEl  = el(mode === 'borrow' ? 'borrowSelect' : 'returnSelect');
+    const infoEl    = el(mode === 'borrow' ? 'borrowItemInfo' : 'returnItemInfo');
+
+    const item = state.items.find(x => x.id === itemId);
+    if (!item) {
+      showToast('Barang tidak ditemukan di database', 'warning');
+      return false;
+    }
+
+    if (mode === 'borrow' && item.status !== 'available') {
+      showToast(`"${item.name}" sedang dipinjam oleh ${item.borrowedBy || 'seseorang'}`, 'warning');
+      return false;
+    }
+    if (mode === 'return' && item.status !== 'borrowed') {
+      showToast(`"${item.name}" tidak sedang dipinjam`, 'warning');
+      return false;
+    }
+
+    // Set dropdown value
+    if (selectEl) selectEl.value = itemId;
+
+    // Show info banner
+    if (infoEl) {
+      if (mode === 'borrow') {
+        infoEl.innerHTML = `<div class="modal-item-info-text">
+          <div class="modal-item-info-name">${escapeHtml(item.name)}</div>
+          ${item.category ? `<div class="modal-item-info-cat">${escapeHtml(item.category)}</div>` : ''}
+        </div>`;
+      } else {
+        infoEl.innerHTML = `<div class="modal-item-info-text">
+          <div class="modal-item-info-name">${escapeHtml(item.name)}</div>
+          ${item.borrowedBy ? `<div class="modal-item-info-cat">Dipinjam oleh: ${escapeHtml(item.borrowedBy)}</div>` : ''}
+        </div>`;
+      }
+      infoEl.classList.add('visible');
+    }
+    return true;
+  }
+
+  /* ── Start scanner for a given modal ── */
+  async function startScanner(mode) {
+    const videoId     = mode + 'QrVideo';
+    const canvasId    = mode + 'QrCanvas';
+    const containerId = mode + 'QrScanner';
+    const scanBtnId   = mode + 'ScanQrBtn';
+    const cancelBtnId = mode + 'ScanCancelBtn';
+
+    const videoEl     = el(videoId);
+    const canvasEl    = el(canvasId);
+    const containerEl = el(containerId);
+    const scanBtnEl   = el(scanBtnId);
+
+    if (!videoEl || !canvasEl || !containerEl) return;
+    if (!window.jsQR) { showToast('Library scanner belum siap, coba lagi', 'warning'); return; }
+
+    // Stop any existing scanner
+    stopScanner(videoEl, canvasEl, containerEl);
+
+    // Show container, hide scan button
+    containerEl.style.display = 'block';
+    if (scanBtnEl) scanBtnEl.style.display = 'none';
+
+    // Add scanning line element if not present
+    const frame = containerEl.querySelector('.qr-scanner-frame');
+    if (frame && !frame.querySelector('.scan-line')) {
+      const line = document.createElement('div');
+      line.className = 'scan-line';
+      frame.appendChild(line);
+    }
+
+    // Scroll into view
+    setTimeout(() => containerEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
+      activeStream = stream;
+      videoEl.srcObject = stream;
+      await videoEl.play();
+    } catch(err) {
+      console.error('Camera error:', err);
+      showToast('Tidak dapat mengakses kamera', 'danger');
+      stopScanner(videoEl, canvasEl, containerEl);
+      if (scanBtnEl) scanBtnEl.style.display = '';
+      return;
+    }
+
+    const ctx = canvasEl.getContext('2d');
+    let lastScan = 0;
+
+    function tick() {
+      if (videoEl.readyState === videoEl.HAVE_ENOUGH_DATA) {
+        const now = Date.now();
+        if (now - lastScan < 200) { scanRafId = requestAnimationFrame(tick); return; } // throttle ~5fps
+        lastScan = now;
+
+        canvasEl.width  = videoEl.videoWidth;
+        canvasEl.height = videoEl.videoHeight;
+        ctx.drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
+
+        const imageData = ctx.getImageData(0, 0, canvasEl.width, canvasEl.height);
+        const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: 'dontInvert'
+        });
+
+        if (code) {
+          const itemId = parseQrPayload(code.data);
+          if (itemId) {
+            // Flash success
+            containerEl.classList.add('qr-success');
+
+            const ok = applyScannedItem(itemId, mode);
+            stopScanner(videoEl, canvasEl, containerEl);
+            if (scanBtnEl) scanBtnEl.style.display = '';
+
+            if (ok) {
+              showToast('✅ Barang berhasil diidentifikasi', 'success');
+              // Scroll modal body to name field
+              setTimeout(() => {
+                const body = el(mode + 'Modal')?.querySelector('.form-modal-body');
+                if (body) body.scrollTo({ top: 0, behavior: 'smooth' });
+              }, 300);
+            }
+            return;
+          }
+        }
+      }
+      scanRafId = requestAnimationFrame(tick);
+    }
+    scanRafId = requestAnimationFrame(tick);
+  }
+
+  /* ── Wire up buttons after DOM ready ── */
+  document.addEventListener('DOMContentLoaded', () => {
+    ['borrow', 'return'].forEach(mode => {
+      // Scan button
+      const scanBtn = el(mode + 'ScanQrBtn');
+      if (scanBtn) {
+        scanBtn.addEventListener('click', () => startScanner(mode));
+      }
+
+      // Cancel button
+      const cancelBtn = el(mode + 'ScanCancelBtn');
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+          const videoEl     = el(mode + 'QrVideo');
+          const canvasEl    = el(mode + 'QrCanvas');
+          const containerEl = el(mode + 'QrScanner');
+          const scanBtnEl   = el(mode + 'ScanQrBtn');
+          stopScanner(videoEl, canvasEl, containerEl);
+          if (scanBtnEl) scanBtnEl.style.display = '';
+        });
+      }
+    });
+
+    // Stop camera when modals close
+    document.addEventListener('click', e => {
+      const closeIds = ['closeBorrowModal','cancelBorrowBtn','closeReturnModal','cancelReturnBtn'];
+      if (closeIds.includes(e.target.id) || e.target.closest('[id$="Modal"]') === null) return;
+      // handled by guardClose functions; just stop scanner if active
+    });
+  });
+
+  // Also stop scanner when modal closes via overlay/button
+  const origCloseBorrow = window.closeBorrowModal;
+  const origCloseReturn = window.closeReturnModal;
+
+  window.closeBorrowModal = function() {
+    stopScanner(el('borrowQrVideo'), el('borrowQrCanvas'), el('borrowQrScanner'));
+    const sb = el('borrowScanQrBtn'); if (sb) sb.style.display = '';
+    if (origCloseBorrow) origCloseBorrow();
+  };
+  window.closeReturnModal = function() {
+    stopScanner(el('returnQrVideo'), el('returnQrCanvas'), el('returnQrScanner'));
+    const sb = el('returnScanQrBtn'); if (sb) sb.style.display = '';
+    if (origCloseReturn) origCloseReturn();
+  };
+
+})();
