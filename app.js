@@ -440,6 +440,144 @@ function uid(prefix='id'){ return prefix + '-' + Math.random().toString(36).slic
 function formatDate(s){ if(!s) return ''; const d = new Date(s); if(isNaN(d)) return s; return d.toLocaleDateString('id-ID'); }
 function escapeHtml(s){ return (s+'').replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 function downloadText(filename, text){ const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type:'application/json'})); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); try{ URL.revokeObjectURL(a.href); }catch(e){} }
+function sanitizeFilename(s=''){ return (s || 'barang').toString().trim().replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, '_').slice(0, 80) || 'barang'; }
+function getItemQrPayload(item){
+  return JSON.stringify({
+    type: 'simisa-item',
+    id: item.id,
+    nama: item.name || '',
+    kategori: item.category || '',
+    detail: item.desc || ''
+  });
+}
+function getItemQrImageUrl(item, size = 700){
+  const payload = encodeURIComponent(getItemQrPayload(item));
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${payload}&format=png&qzone=1`;
+}
+function downloadUrl(filename, url){
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+async function fetchAsDataUrl(url){
+  const response = await fetch(url);
+  if(!response.ok) throw new Error('Gagal memuat gambar QR');
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = () => reject(new Error('Gagal mengubah QR ke data URL'));
+    reader.readAsDataURL(blob);
+  });
+}
+async function downloadItemQrPdf(item){
+  const { jsPDF } = window.jspdf;
+  if(!jsPDF) throw new Error('Library PDF tidak tersedia');
+  const qrImageUrl = getItemQrImageUrl(item);
+  const qrDataUrl = await fetchAsDataUrl(qrImageUrl);
+  const doc = new jsPDF('portrait', 'mm', 'a4');
+  const pageW = doc.internal.pageSize.getWidth();
+  doc.setFontSize(18);
+  doc.text('QR Barang SiMISA', pageW / 2, 20, { align: 'center' });
+  doc.setFontSize(12);
+  doc.text(`Nama: ${item.name || '-'}`, 20, 34);
+  doc.text(`Kategori: ${item.category || '-'}`, 20, 42);
+  doc.text(`Detail: ${item.desc || '-'}`, 20, 50, { maxWidth: pageW - 40 });
+  doc.text(`ID: ${item.id}`, 20, 64);
+  doc.addImage(qrDataUrl, 'PNG', (pageW - 90) / 2, 72, 90, 90);
+  const fileBase = sanitizeFilename(item.name || item.id);
+  doc.save(`QR_${fileBase}.pdf`);
+}
+function printItemQr(item){
+  const qrImageUrl = getItemQrImageUrl(item, 900);
+  const win = window.open('', '_blank');
+  if(!win) throw new Error('Popup print diblokir browser');
+  win.document.write(`
+    <!doctype html>
+    <html>
+      <head>
+        <title>Print QR ${escapeHtml(item.name || item.id)}</title>
+        <style>
+          body{font-family:Arial,sans-serif;padding:24px;text-align:center;color:#111;}
+          img{width:280px;height:280px;display:block;margin:16px auto;}
+          .meta{font-size:14px;margin:6px 0;}
+        </style>
+      </head>
+      <body>
+        <h2>QR Barang SiMISA</h2>
+        <div class="meta"><strong>Nama:</strong> ${escapeHtml(item.name || '-')}</div>
+        <div class="meta"><strong>Kategori:</strong> ${escapeHtml(item.category || '-')}</div>
+        <div class="meta"><strong>Detail:</strong> ${escapeHtml(item.desc || '-')}</div>
+        <div class="meta"><strong>ID:</strong> ${escapeHtml(item.id)}</div>
+        <img src="${qrImageUrl}" alt="QR ${escapeHtml(item.name || item.id)}" />
+      </body>
+    </html>
+  `);
+  win.document.close();
+  win.focus();
+  setTimeout(() => {
+    win.print();
+  }, 400);
+}
+function openQrModal(item){
+  const existing = document.getElementById('qrItemModal');
+  if(existing) existing.remove();
+  const qrImageUrl = getItemQrImageUrl(item, 900);
+  const modal = document.createElement('div');
+  modal.id = 'qrItemModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;z-index:10002;padding:16px;';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:14px;padding:16px;max-width:420px;width:100%;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <h3 style="margin:0;color:#111827;">QR Barang</h3>
+        <button id="closeQrModal" class="btn ghost" type="button">Tutup</button>
+      </div>
+      <div style="font-size:13px;color:#374151;line-height:1.45;margin-bottom:12px;">
+        <div><strong>Nama:</strong> ${escapeHtml(item.name || '-')}</div>
+        <div><strong>Kategori:</strong> ${escapeHtml(item.category || '-')}</div>
+        <div><strong>Detail:</strong> ${escapeHtml(item.desc || '-')}</div>
+      </div>
+      <div style="display:flex;justify-content:center;margin-bottom:12px;">
+        <img src="${qrImageUrl}" alt="QR ${escapeHtml(item.name || item.id)}" style="width:260px;height:260px;border:1px solid #e5e7eb;border-radius:10px;padding:8px;background:#fff;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <button id="downloadQrPngBtn" class="btn primary" type="button">⬇️ PNG</button>
+        <button id="downloadQrPdfBtn" class="btn export-pdf" type="button">⬇️ PDF</button>
+        <button id="printQrBtn" class="btn ghost" style="grid-column:1/3;" type="button">🖨️ Print</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  const close = () => modal.remove();
+  modal.addEventListener('click', e => { if(e.target === modal) close(); });
+  modal.querySelector('#closeQrModal').addEventListener('click', close);
+  modal.querySelector('#downloadQrPngBtn').addEventListener('click', () => {
+    const fileBase = sanitizeFilename(item.name || item.id);
+    downloadUrl(`QR_${fileBase}.png`, qrImageUrl);
+    showToast('QR PNG diunduh', 'success');
+  });
+  modal.querySelector('#downloadQrPdfBtn').addEventListener('click', async () => {
+    try{
+      await downloadItemQrPdf(item);
+      showToast('QR PDF diunduh', 'success');
+    }catch(err){
+      console.error(err);
+      showToast(err.message || 'Gagal membuat PDF QR', 'danger');
+    }
+  });
+  modal.querySelector('#printQrBtn').addEventListener('click', () => {
+    try{
+      printItemQr(item);
+      showToast('Membuka dialog print QR', 'info');
+    }catch(err){
+      console.error(err);
+      showToast(err.message || 'Gagal print QR', 'danger');
+    }
+  });
+}
 
 let lastView = null;
 
@@ -792,12 +930,15 @@ function renderManage(highlightId=null){
     const h = document.createElement('h3'); h.textContent = it.name; card.appendChild(h);
     const p = document.createElement('div'); p.className='meta'; p.textContent = it.desc || ''; card.appendChild(p);
 
+    const actions = document.createElement('div'); actions.className='actions';
+    const qrBtn = document.createElement('button'); qrBtn.className='btn ghost'; qrBtn.textContent='QR'; qrBtn.dataset.action='generate-qr'; qrBtn.dataset.id = it.id;
+    actions.appendChild(qrBtn);
     if(it.status === 'available'){
-      const actions = document.createElement('div'); actions.className='actions';
       const editBtn = document.createElement('button'); editBtn.className='btn primary'; editBtn.textContent='Ubah'; editBtn.dataset.action='edit'; editBtn.dataset.id = it.id;
       const delBtn = document.createElement('button'); delBtn.className='btn danger'; delBtn.textContent='Hapus'; delBtn.dataset.action='delete'; delBtn.dataset.id = it.id;
-      actions.appendChild(editBtn); actions.appendChild(delBtn); card.appendChild(actions);
+      actions.appendChild(editBtn); actions.appendChild(delBtn);
     }
+    card.appendChild(actions);
     frag.appendChild(card);
   }
 
@@ -1653,6 +1794,11 @@ if(el('manageList')) el('manageList').addEventListener('click', (e)=>{
   const action = btn.dataset.action; const id = btn.dataset.id;
   const item = state.items.find(x=>x.id===id);
   if(!item && action !== 'cancel-edit') return;
+
+  if(action==='generate-qr'){
+    openQrModal(item);
+    return;
+  }
 
   if(action==='delete'){
     showConfirm('Apakah Anda yakin ingin menghapus barang ini?', () => {
