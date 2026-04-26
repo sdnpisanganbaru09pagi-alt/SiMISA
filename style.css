@@ -684,9 +684,10 @@ label[for],
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 16px;
-  border: none;
-  border-radius: calc(var(--radius-md) + 2px);
+  padding: 15px 16px;
+  min-height: 64px;
+  border: 1.5px solid rgba(255,255,255,.28);
+  border-radius: 18px;
   color: #fff;
   font-weight: 700;
   font-size: 14px;
@@ -696,12 +697,15 @@ label[for],
   margin-bottom: 12px;
   transition: transform .12s ease, box-shadow .2s ease, filter .2s ease, opacity .2s ease;
   box-shadow:
-    0 10px 22px color-mix(in srgb, var(--primary) 36%, transparent),
-    inset 0 0 0 1px rgba(255,255,255,.22);
+    0 16px 30px rgba(37,99,235,.32),
+    0 4px 12px rgba(79,70,229,.28),
+    inset 0 1px 0 rgba(255,255,255,.32);
   letter-spacing: .15px;
   text-align: left;
   position: relative;
   overflow: hidden;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 .qr-scan-btn::after{
   content:'';
@@ -753,6 +757,13 @@ label[for],
 .qr-scan-btn:active {
   opacity: .95;
   transform: translateY(1px) scale(.995);
+}
+.qr-scan-btn:hover{
+  transform: translateY(-1px);
+  box-shadow:
+    0 18px 32px rgba(37,99,235,.35),
+    0 6px 14px rgba(79,70,229,.3),
+    inset 0 1px 0 rgba(255,255,255,.35);
 }
 @keyframes qrShine{
   0%, 72%{ left:-35%; opacity:0; }
