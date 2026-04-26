@@ -230,6 +230,29 @@
       <div class="form-modal-body">
         <form class="form" id="borrowForm" autocomplete="off">
 
+          <!-- QR Scanner trigger -->
+          <div id="borrowQrScanArea">
+            <button class="btn qr-scan-btn" type="button" id="borrowScanQrBtn">
+              <span class="qr-scan-btn-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h7v7H3V3zm1 1v5h5V4H4zm1 1h3v3H5V5zm8-2h7v7h-7V3zm1 1v5h5V4h-5zm1 1h3v3h-3V5zM3 13h7v7H3v-7zm1 1v5h5v-5H4zm1 1h3v3H5v-3zm11 0h2v2h-2v-2zm-3-1h2v2h-2v-2zm0 3h2v2h-2v-2zm3 0h2v2h-2v-2zm0 3h2v2h-2v-2zm-3 0h2v2h-2v-2zm6-6h2v2h-2v-2zm0 3h2v2h-2v-2zm0 3h2v2h-2v-2z"/></svg>
+              </span>
+              <span class="qr-scan-btn-copy">
+                <strong>Scan QR Barang</strong>
+                <small>Lebih cepat, tanpa pilih manual</small>
+              </span>
+              <span class="qr-scan-btn-badge">Cepat</span>
+            </button>
+            <div id="borrowQrScanner" class="qr-scanner-container" style="display:none;">
+              <video id="borrowQrVideo" class="qr-video" autoplay playsinline muted></video>
+              <canvas id="borrowQrCanvas" style="display:none;"></canvas>
+              <div class="qr-scanner-overlay">
+                <div class="qr-scanner-frame"></div>
+                <p class="qr-scanner-hint">Arahkan kamera ke QR code barang</p>
+              </div>
+              <button class="btn ghost qr-cancel-btn" type="button" id="borrowScanCancelBtn">Batal Scan</button>
+            </div>
+          </div>
+
           <label style="display:none">
             <select class="select" id="borrowSelect" required>
               <option value="">Pilih barang yang tersedia…</option>
