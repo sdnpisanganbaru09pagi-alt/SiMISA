@@ -673,6 +673,10 @@ label[for],
 .notification-close{
   -webkit-tap-highlight-color:transparent;
 }
+
+#dashboardQuickScanArea{
+  margin-bottom:12px;
+}
 /* ── QR Scanner ── */
 .qr-scan-btn {
   width: 100%;

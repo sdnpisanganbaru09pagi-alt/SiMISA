@@ -71,6 +71,29 @@
         </div>
       </div>
 
+      <!-- Quick QR Scan -->
+      <div id="dashboardQuickScanArea">
+        <button class="btn qr-scan-btn" type="button" id="quickScanQrBtn">
+          <span class="qr-scan-btn-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h7v7H3V3zm1 1v5h5V4H4zm1 1h3v3H5V5zm8-2h7v7h-7V3zm1 1v5h5V4h-5zm1 1h3v3h-3V5zM3 13h7v7H3v-7zm1 1v5h5v-5H4zm1 1h3v3H5v-3zm11 0h2v2h-2v-2zm-3-1h2v2h-2v-2zm0 3h2v2h-2v-2zm3 0h2v2h-2v-2zm0 3h2v2h-2v-2zm-3 0h2v2h-2v-2zm6-6h2v2h-2v-2zm0 3h2v2h-2v-2zm0 3h2v2h-2v-2z"/></svg>
+          </span>
+          <span class="qr-scan-btn-copy">
+            <strong>Scan QR Cepat</strong>
+            <small>Auto pilih peminjaman / pengembalian</small>
+          </span>
+          <span class="qr-scan-btn-badge">Smart</span>
+        </button>
+        <div id="quickQrScanner" class="qr-scanner-container" style="display:none;">
+          <video id="quickQrVideo" class="qr-video" autoplay playsinline muted></video>
+          <canvas id="quickQrCanvas" style="display:none;"></canvas>
+          <div class="qr-scanner-overlay">
+            <div class="qr-scanner-frame"></div>
+            <p class="qr-scanner-hint">Scan QR untuk otomatis pilih aksi</p>
+          </div>
+          <button class="btn ghost qr-cancel-btn" type="button" id="quickScanCancelBtn">Batal Scan</button>
+        </div>
+      </div>
+
       <!-- Search -->
       <div class="search">
         <input aria-label="Cari barang" id="q" placeholder="Cari barang, kategori, peminjam…" type="search"/>
@@ -293,23 +316,6 @@
       <div class="modal-item-info" id="returnItemInfo"></div>
       <div class="form-modal-body">
         <form class="form" id="returnForm" autocomplete="off">
-
-          <!-- QR Scanner trigger -->
-          <div id="returnQrScanArea">
-            <button class="btn qr-scan-btn" type="button" id="returnScanQrBtn">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h7v7H3V3zm1 1v5h5V4H4zm1 1h3v3H5V5zm8-2h7v7h-7V3zm1 1v5h5V4h-5zm1 1h3v3h-3V5zM3 13h7v7H3v-7zm1 1v5h5v-5H4zm1 1h3v3H5v-3zm11 0h2v2h-2v-2zm-3-1h2v2h-2v-2zm0 3h2v2h-2v-2zm3 0h2v2h-2v-2zm0 3h2v2h-2v-2zm-3 0h2v2h-2v-2zm6-6h2v2h-2v-2zm0 3h2v2h-2v-2zm0 3h2v2h-2v-2z"/></svg>
-              Scan QR Barang
-            </button>
-            <div id="returnQrScanner" class="qr-scanner-container" style="display:none;">
-              <video id="returnQrVideo" class="qr-video" autoplay playsinline muted></video>
-              <canvas id="returnQrCanvas" style="display:none;"></canvas>
-              <div class="qr-scanner-overlay">
-                <div class="qr-scanner-frame"></div>
-                <p class="qr-scanner-hint">Arahkan kamera ke QR code barang</p>
-              </div>
-              <button class="btn ghost qr-cancel-btn" type="button" id="returnScanCancelBtn">Batal Scan</button>
-            </div>
-          </div>
 
           <label style="display:none">
             <select class="select" id="returnSelect" required>
