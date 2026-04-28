@@ -1,5 +1,5 @@
 // service-worker.js
-const CACHE_NAME = "simisa-cache-v43";
+const CACHE_NAME = "simisa-cache-v44";
 const urlsToCache = [
   "/",
   "/index.html",
@@ -7,6 +7,7 @@ const urlsToCache = [
   "/style.css",
   "/app.js",
   "/fallback.js",
+  "/members.js",
   "/jsQR.js",
   "/jspdf.umd.min.js",
   "/jspdf.plugin.autotable.min.js",
