@@ -414,9 +414,9 @@ function _renderDropdownList() {
     });
   }
 
-  renderGroup('👩‍🏫 Guru', guru);
-  renderGroup('🏢 Staff', staff);
-  if (lain.length) renderGroup('📋 Lainnya', lain);
+  renderGroup('Guru', guru);
+  renderGroup('Staff', staff);
+  if (lain.length) renderGroup('Lainnya', lain);
 }
 
 function selectMemberById(id) {
@@ -546,7 +546,7 @@ function injectMembersTab() {
     section.innerHTML = `
       <!-- Add member form -->
       <div class="section-box">
-        <div class="section-title">👤 Tambah Warga Sekolah</div>
+        <div class="section-title"><svg class="title-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-4.2 0-8 2.1-8 5v1h16v-1c0-2.9-3.8-5-8-5Z"/></svg> Tambah Warga Sekolah</div>
         <div class="form" id="addMemberForm">
           <div>
             <label for="memberNama">Nama Lengkap</label>
@@ -571,14 +571,14 @@ function injectMembersTab() {
 
       <!-- Import / Template -->
       <div class="section-box members-import-box">
-        <div class="section-title">📥 Import dari Excel</div>
+        <div class="section-title"><svg class="title-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.17l3.59-3.58L17 11l-5 5-5-5 1.41-1.41L11 13.17V3h1ZM4 18h16v2H4z"/></svg> Import dari Excel</div>
         <p class="meta" style="margin-bottom:12px;">Download template, isi data, lalu import kembali.</p>
         <div class="actions" style="flex-wrap:wrap;gap:8px;">
           <button class="btn ghost" type="button" id="downloadTemplateMemberBtn">
-            ⬇️ Download Template Excel
+            Download Template Excel
           </button>
           <button class="btn primary" type="button" id="importMemberBtn">
-            📂 Import dari Excel
+            <svg class="inline-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4 8 6H4a2 2 0 0 0-2 2v8h2V8h4.8l2-2H20v4h2V6a2 2 0 0 0-2-2h-10Zm2 6v4H8l4 4 4-4h-4v-4h-2ZM2 18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4h-2v4H4v-4H2v4Z"/></svg> Import dari Excel
           </button>
         </div>
       </div>
