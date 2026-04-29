@@ -61,7 +61,7 @@ input,select,textarea{transition:all 0.2s ease}
     pointer-events:none;
   }
   body::before{
-    content:'📱 SiMISA — Mobile App Preview';
+    content:'SiMISA — Mobile App Preview';
     position:fixed;top:0;left:0;right:0;height:32px;
     display:flex;align-items:center;justify-content:center;
     font-family:'Plus Jakarta Sans',ui-sans-serif,system-ui,sans-serif;
@@ -217,6 +217,15 @@ input,select,textarea{transition:all 0.2s ease}
   transition:all 0.2s ease;text-decoration:none;white-space:nowrap;letter-spacing:0.01em;
   -webkit-tap-highlight-color:transparent;
   outline:none;
+}
+.section-title{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.title-icon,.inline-icon{
+  display:inline-block;
+  flex-shrink:0;
 }
 .btn:hover{transform:translateY(-2px);box-shadow:0 4px 14px rgba(0,0,0,0.12)}
 .btn:active{transform:translateY(0);opacity:0.9}

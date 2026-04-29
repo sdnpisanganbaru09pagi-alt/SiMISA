@@ -70,7 +70,7 @@ function showInstallNotification() {
   // Notification content
   notification.innerHTML = `
     <div style="display: flex; align-items: center; gap: 10px;">
-      <div style="font-size: 18px;">📱</div>
+      <div style="display:flex;align-items:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm0 3v14h10V5H7Zm5 15a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4Z"/></svg></div>
       <div>
         <div style="font-weight: 600; margin-bottom: 2px;">Install SiMISA</div>
         <div style="font-size: 12px; opacity: 0.9;">Install aplikasi untuk akses yang lebih cepat</div>
@@ -177,7 +177,7 @@ function showManualInstallInstructions() {
     instructions = `
       <div style="text-align: left; line-height: 1.5;">
         <p><strong>Untuk install di iOS:</strong></p>
-        <p>1. Tap tombol Share (📤) di Safari</p>
+        <p>1. Tap tombol Share di Safari</p>
         <p>2. Pilih "Add to Home Screen"</p>
         <p>3. Tap "Add" untuk confirm</p>
       </div>
@@ -323,7 +323,7 @@ function addManualInstallButton() {
       transition: all 0.2s ease;
       box-shadow: 0 2px 4px rgba(108, 92, 231, 0.2);
     `;
-    installBtn.innerHTML = '<span style="font-size: 14px;">📱</span>Install';
+    installBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="margin-right:4px;vertical-align:-2px;"><path d="M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm0 3v14h10V5H7Zm5 15a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4Z"/></svg>Install';
     installBtn.title = 'Install aplikasi ke perangkat Anda';
     
     installBtn.addEventListener('click', () => {
@@ -871,7 +871,7 @@ function printItemQr(item){
             </div>
 
             <div class="label-footer">
-              <span class="scan-hint">📷 Scan QR untuk info peminjaman</span>
+              <span class="scan-hint">Scan QR untuk info peminjaman</span>
               <div class="dots">
                 <div class="dot"></div>
                 <div class="dot"></div>
@@ -882,7 +882,7 @@ function printItemQr(item){
 
           <!-- Controls (hidden on print) -->
           <div class="controls no-print">
-            <button class="btn-print" onclick="window.print()">🖨️ Cetak Label</button>
+            <button class="btn-print" onclick="window.print()">Cetak Label</button>
             <button class="btn-close" onclick="window.close()">Tutup</button>
           </div>
           <div class="preview-note no-print">Preview label · ukuran cetak ~9×6 cm</div>
@@ -916,9 +916,9 @@ function openQrModal(item){
         <img src="${qrImageUrl}" alt="QR ${escapeHtml(item.name || item.id)}" style="width:260px;height:260px;border:1px solid #e5e7eb;border-radius:10px;padding:8px;background:#fff;">
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <button id="downloadQrPngBtn" class="btn primary" type="button">⬇️ PNG</button>
-        <button id="downloadQrPdfBtn" class="btn export-pdf" type="button">⬇️ PDF</button>
-        <button id="printQrBtn" class="btn ghost" style="grid-column:1/3;" type="button">🖨️ Print</button>
+        <button id="downloadQrPngBtn" class="btn primary" type="button">PNG</button>
+        <button id="downloadQrPdfBtn" class="btn export-pdf" type="button">PDF</button>
+        <button id="printQrBtn" class="btn ghost" style="grid-column:1/3;" type="button">Print</button>
       </div>
     </div>
   `;
