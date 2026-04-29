@@ -1978,60 +1978,16 @@ if (headmasterNIP) doc.text(`NIP. ${headmasterNIP}`, x, y + 58);
 
 
 	
-    // Footer kanan bawah: logo + timestamp generate
-    const getImageDataUrl = async (src) => {
-      try {
-        const res = await fetch(src);
-        const blob = await res.blob();
-        return await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-      } catch (error) {
-        console.warn('Gagal memuat logo footer PDF:', error);
-        return null;
-      }
-    };
-
+    // Footer kanan bawah: timestamp generate
     const now = new Date();
     const hari = now.toLocaleDateString('id-ID', { weekday: 'long' });
     const tanggal = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
     const waktu = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    const footerText = `Digenerate pada ${hari}, ${tanggal} Pukul ${waktu} WIB`;
+    const footerText = `Digenerate Pada : ${hari}, ${tanggal} Pukul ${waktu} WIB`;
 
-    const logoDataUrl = await getImageDataUrl('logo.webp');
     const footerRightPadding = 15;
-    const logoW = 16;
-    const logoH = 16;
-    const badgeText = 'SiMisa';
-    const badgePaddingX = 4;
-    const badgePaddingY = 2;
 
-    doc.setFontSize(9);
-    doc.setFont(undefined, 'bold');
-    const badgeTextWidth = doc.getTextWidth(badgeText);
-    const badgeW = badgeTextWidth + (badgePaddingX * 2);
-    const badgeH = 6 + (badgePaddingY * 2);
-
-    const footerBlockWidth = logoW + 3 + badgeW;
-    const footerX = pageWidth - footerRightPadding - footerBlockWidth;
-    const logoY = pageHeight - 20;
-
-    if (logoDataUrl) {
-      doc.addImage(logoDataUrl, 'WEBP', footerX, logoY, logoW, logoH);
-    }
-
-    // Badge teks "SiMisa" putih dengan latar abu-abu
-    const badgeX = footerX + logoW + 3;
-    const badgeY = logoY + 3;
-    doc.setFillColor(120, 120, 120);
-    doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 1.2, 1.2, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.text(badgeText, badgeX + badgePaddingX, badgeY + badgeH - 2.7);
-
-    // Teks timestamp di bawah elemen logo
+    // Teks timestamp saja
     doc.setFont(undefined, 'normal');
     doc.setFontSize(8);
     doc.setTextColor(90, 90, 90);
