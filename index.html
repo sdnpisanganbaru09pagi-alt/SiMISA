@@ -1,999 +1,395 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SiLapor - Sistem Laporan Sekolah</title>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Sora:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0ea5e9" />
+  <meta charset="utf-8"/>
+  <meta content="width=device-width,initial-scale=1,maximum-scale=1" name="viewport"/>
+  <title>SiMISA — Aplikasi Peminjaman Aset Sekolah</title>
   <link rel="stylesheet" href="style.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' fill='%234f46e5'/></svg>">
 </head>
 <body>
-<div class="app">
 
-<!-- ========== SIDEBAR ========== -->
-<aside class="sidebar" id="sidebar">
+<div aria-label="SiMISA Aplikasi Peminjaman Aset Sekolah" class="app" role="application">
 
-  <div class="sidebar-brand">
-    <div class="sidebar-brand-logo">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="rgba(255,255,255,0.9)"/>
-      </svg>
-    </div>
-    <div class="sidebar-brand-text">SiLapor <span class="sidebar-beta">BETA</span></div>
-    <button class="sidebar-close-btn" id="sidebarCloseBtn" onclick="closeMobileNav()" aria-label="Tutup menu">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="4" y1="4" x2="20" y2="20"/><line x1="20" y1="4" x2="4" y2="20"/>
-      </svg>
-    </button>
-  </div>
-
-  <!-- Nav publik -->
-  <div class="sidebar-section" id="sidebarPublicNav">
-    <div class="sidebar-section-label">Menu Utama</div>
-    <button class="sidebar-item active" id="snav-reporter" onclick="showPage('reporter'); closeMobileNav()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-      </svg>
-      <span>Laporan</span>
-    </button>
-    <button class="sidebar-item" id="snav-tracking" onclick="resetTracking(); showPage('tracking'); closeMobileNav()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-      </svg>
-      <span>Lacak Laporan</span>
-    </button>
-    <button class="sidebar-item" id="snav-school-login" onclick="showPage('school-login'); closeMobileNav()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-        <polyline points="9 22 9 12 15 12 15 22"/>
-      </svg>
-      <span>Login Sekolah</span>
-    </button>
-    <button class="sidebar-item" id="snav-admin-login" onclick="showPage('admin-login'); closeMobileNav()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-      </svg>
-      <span>Admin</span>
-    </button>
-  </div>
-
-  <!-- Nav sekolah (setelah login) -->
-  <div class="sidebar-section hidden" id="sidebarSchoolNav">
-    <div class="sidebar-section-label">Sekolah</div>
-    <button class="sidebar-item active" onclick="showPage('school-dash'); closeMobileNav()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-      </svg>
-      <span>Dashboard</span>
-    </button>
-  </div>
-
-  <!-- Nav admin (setelah login) -->
-  <div class="sidebar-section hidden" id="sidebarAdminNav">
-    <div class="sidebar-section-label">Administrator</div>
-    <button class="sidebar-item active" onclick="showPage('admin-dash'); closeMobileNav()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-      </svg>
-      <span>Dashboard</span>
-    </button>
-  </div>
-
-  <div class="sidebar-spacer"></div>
-
-  <!-- Info user (setelah login) -->
-  <div class="sidebar-user hidden" id="sidebarUser">
-    <div class="sidebar-user-avatar" id="sidebarUserAvatar">?</div>
-    <div class="sidebar-user-info">
-      <div class="sidebar-user-name" id="sidebarUserName">–</div>
-      <div class="sidebar-user-role" id="sidebarUserRole">–</div>
-    </div>
-  </div>
-
-  <!-- Tombol aksi (setelah login) -->
-  <div class="sidebar-actions hidden" id="sidebarActions">
-    <button class="sidebar-action-btn" id="sidebarBtnChangePass" style="display:none" onclick="openAdminChangePass()">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
-      </svg>
-      Ganti Password
-    </button>
-    <button class="sidebar-action-btn" id="sidebarBtnSchoolChangePass" style="display:none" onclick="openSchoolChangePass()">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
-      </svg>
-      Ganti Password
-    </button>
-    <button class="sidebar-action-btn sidebar-logout-btn" onclick="logout()">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
-        <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-      </svg>
-      Keluar
-    </button>
-  </div>
-
-</aside>
-
-<!-- Backdrop mobile -->
-<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeMobileNav()"></div>
-
-<!-- ========== TOPBAR (mobile) ========== -->
-<header class="topbar" id="topbar">
-  <button class="nav-menu-btn" id="mobileMenuBtn" onclick="toggleMobileNav()" aria-label="Menu">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
-      <line x1="3" y1="6" x2="21" y2="6"/>
-      <line x1="3" y1="12" x2="21" y2="12"/>
-      <line x1="3" y1="18" x2="21" y2="18"/>
-    </svg>
-  </button>
-  <div class="topbar-brand">SiLapor <span class="sidebar-beta">BETA</span></div>
-  <div class="topbar-user hidden" id="topbarUser">
-    <div class="topbar-avatar" id="topbarUserAvatar">?</div>
-  </div>
-</header>
-
-<!-- ========== MAIN CONTENT ========== -->
-<div class="main-content" id="mainContent">
-
-<!-- ==================== PAGE: PELAPOR ==================== -->
-<div class="page active" id="page-reporter">
-  <div class="hero">
-    <div class="hero-title">Laporkan Kondisi Lingkungan Sekolah</div>
-    <div class="hero-sub">Laporan Anda membantu sekolah menjadi lingkungan yang lebih baik. Identitas pelapor dijaga kerahasiaannya.</div>
-    <div class="hero-badge">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="rgba(255,255,255,0.9)"/>
-      </svg>
-      Aman & Terpercaya
-    </div>
-  </div>
-
-  <div id="reporterAlert"></div>
-
-  <div class="card">
-    <div class="card-title">Identitas Pelapor</div>
-    <div class="form-row">
-      <div class="form-group">
-        <label>Nama Pelapor <span>*</span></label>
-        <input type="text" id="r_name" placeholder="Nama lengkap Anda"
-          maxlength="60"
-          oninput="filterNameInput(this)"
-          autocomplete="name">
-        <div class="field-hint" id="r_name_hint" style="display:none"></div>
+  <!-- ── Header ── -->
+  <header class="header">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <img alt="SiMISA logo" src="logo.webp" />
       </div>
-      <div class="form-group">
-        <label>Email</label>
-        <input type="email" id="r_email" placeholder="email@contoh.com" oninput="validateOptionalEmail(this)">
-        <div class="field-hint" id="r_email_hint" style="display:none"></div>
+      <div>
+        <div class="title">SiMISA</div>
+        <div class="subtitle">Aplikasi Peminjaman Aset Sekolah</div>
       </div>
     </div>
-    <div class="form-group">
-      <label>Nomor WhatsApp <span>*</span></label>
-      <input type="tel" id="r_wa" placeholder="08xxxxxxxxxx"
-        maxlength="15"
-        inputmode="numeric"
-        oninput="filterWAInput(this)"
-        autocomplete="tel">
-      <div class="field-hint" id="r_wa_hint" style="display:none"></div>
-    </div>
-  </div>
+    <div class="header-actions"></div>
+  </header>
 
-  <div class="card">
-    <div class="card-title">Detail Laporan</div>
+  <!-- ── Main ── -->
+  <main class="main">
 
-    <div class="form-group">
-      <label>Nama Sekolah <span>*</span></label>
-      <div class="search-select">
-        <input type="text" id="schoolSearch" placeholder="Ketik nama sekolah..." oninput="filterSchools()" onfocus="showDropdown()" autocomplete="off">
-        <div class="dropdown-list" id="schoolDropdown"></div>
-      </div>
-      <input type="hidden" id="r_school_id">
-      <input type="hidden" id="r_school_name">
-    </div>
-
-    <div class="form-group">
-      <label>Topik Permasalahan <span>*</span></label>
-      <select id="r_topic" onchange="onTopicChange(this)">
-        <option value="">-- Pilih Topik --</option>
-        <option>Kebersihan Lingkungan</option>
-        <option>Kerusakan Fasilitas / Infrastruktur</option>
-        <option>Keamanan & Keselamatan</option>
-        <option>Sanitasi & Toilet</option>
-        <option>Taman & Ruang Hijau</option>
-        <option>Pencahayaan & Listrik</option>
-        <option>Drainase & Banjir</option>
-        <option>Perilaku Tidak Pantas / Bullying</option>
-        <option>Lainnya</option>
-      </select>
-    </div>
-
-    <!-- Date picker — hanya muncul untuk topik Perilaku Tidak Pantas / Bullying -->
-    <div class="form-group" id="incidentDateGroup" style="display:none">
-      <label>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        Tanggal Kejadian <span>*</span>
-      </label>
-      <input type="date" id="r_incident_date" max="" style="font-size:15px">
-      <div class="field-hint" id="r_incident_date_hint" style="display:none"></div>
-    </div>
-
-    <div class="form-group">
-      <label>Deskripsi Permasalahan <span>*</span></label>
-      <textarea id="r_desc" placeholder="Jelaskan kondisi yang Anda temukan secara detail..."></textarea>
-    </div>
-
-    <div class="form-group">
-      <label>Bukti Foto</label>
-      <div class="photo-button-row">
-        <button type="button" class="btn btn-outline btn-icon" onclick="document.getElementById('photoInputCamera').click()">
-          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M5 7h3l2-2h4l2 2h3a1 1 0 011 1v11a1 1 0 01-1 1H5a1 1 0 01-1-1V8a1 1 0 011-1zm7 2a3 3 0 100 6 3 3 0 000-6z"/>
-          </svg>
-          Ambil Foto
-        </button>
-        <button type="button" class="btn btn-outline btn-icon" onclick="document.getElementById('photoInputGallery').click()">
-          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M4 5h16a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1zm2 3l3 4 2-2 4 5h5v-6H6z"/>
-          </svg>
-          Dari Galeri
-        </button>
-      </div>
-      <input type="file" id="photoInputCamera" accept="image/*" capture="environment" multiple hidden onchange="handlePhotos(this)">
-      <input type="file" id="photoInputGallery" accept="image/*" multiple hidden onchange="handlePhotos(this)">
-      <p class="text-sm text-center mt-8">Maks. 3 foto, format JPG/PNG/HEIF</p>
-      <div class="photo-preview" id="photoPreview"></div>
-    </div>
-
-    <div class="divider"></div>
-
-    <div class="captcha-box">
-      <div style="width:100%">
-        <p class="text-sm" style="font-weight:600;color:var(--text-2)">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          Verifikasi Anti-Bot — Hitung hasil berikut:
-        </p>
-        <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
-          <div class="captcha-math" id="captchaQ"></div>
-          <span class="text-sm">=</span>
-          <input type="number" class="captcha-input" id="captchaAns" placeholder="?" oninput="checkCaptchaAuto()">
-        </div>
-        <div id="captchaStatus" style="font-size:12px;margin-top:6px;height:18px;font-weight:500"></div>
-        <p class="text-sm" style="margin-top:4px;opacity:0.7">Jawaban akan diverifikasi secara otomatis</p>
-      </div>
-    </div>
-
-    <button class="btn btn-primary btn-full" onclick="submitReport()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
-      </svg>
-      Kirim Laporan
-    </button>
-  </div>
-
-  <div class="card card-info">
-    <div class="card-info-title">Cara Kerja Sistem</div>
-    <div class="steps">
-      <div class="step active"><span class="step-num">1</span>Laporan Masuk</div>
-      <div class="step"><span class="step-num">2</span>Diterima Sekolah</div>
-      <div class="step"><span class="step-num">3</span>Diproses</div>
-      <div class="step"><span class="step-num">4</span>Selesai</div>
-    </div>
-    <p class="text-sm">Simpan nomor tiket untuk melacak status laporan Anda.</p>
-  </div>
-</div>
-
-<!-- ==================== PAGE: TRACKING ==================== -->
-<div class="page" id="page-tracking">
-  <div class="tracking-wrap">
-    <div class="hero">
-      <div class="hero-title">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline-block;vertical-align:-2px;margin-right:8px">
-          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-        </svg>
-        Lacak Status Laporan
-      </div>
-      <div class="hero-sub">Masukkan nomor tiket untuk melihat status laporan Anda</div>
-    </div>
-    <div class="card">
-      <div class="card-title">Cari Laporan</div>
-      <div class="form-group">
-        <label>Nomor Tiket <span>*</span></label>
-        <div style="display:flex;gap:8px">
-          <input type="text" id="trackInput" placeholder="Contoh: TKT-001" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')trackReport()">
-          <button class="btn btn-primary" onclick="trackReport()">Cari</button>
-        </div>
-      </div>
-      <div id="trackResult"></div>
-    </div>
-
-    <div id="lupaTiketBtnWrap" style="text-align:center;margin-top:16px">
-      <button class="btn btn-sm" onclick="openLupaTiket()" style="gap:6px;font-size:13px;background:var(--danger,#e53e3e);color:#fff;border:none;border-radius:8px;padding:8px 18px;cursor:pointer;display:inline-flex;align-items:center">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        Lupa nomor tiket?
+    <!-- ── Tabs ── -->
+    <nav aria-label="Main tabs" class="tabs" role="tablist">
+      <button aria-selected="true" class="tab active" data-tab="dashboard" role="tab">
+        <span class="tab-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg></span>
+        <span class="tab-label">Dashboard</span>
       </button>
-    </div>
-  </div>
-</div>
+      <button class="tab" data-tab="manage" role="tab">
+        <span class="tab-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2zm0 12H4V9h16v10zM13 5H11V3H9v2H7V3H5v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3h-2v2h-2V3h-2v2z"/></svg></span>
+        <span class="tab-label">Kelola<br>Barang</span>
+      </button>
 
-<!-- ==================== PAGE: LOGIN SEKOLAH ==================== -->
-<div class="page" id="page-school-login">
-  <div class="login-wrap">
-    <div class="login-panel">
-      <div class="hero-login">
-        <div class="hero-login-header">
-          <div class="hero-login-icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.95)" stroke-width="2">
-              <rect x="2" y="7" width="20" height="14" rx="1"/>
-              <path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/>
-              <line x1="12" y1="12" x2="12" y2="12.01"/>
-              <path d="M8 12h8M8 16h8"/>
-            </svg>
+      <button class="tab" data-tab="history" role="tab">
+        <span class="tab-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6a7 7 0 1 1 2.05 4.95L6.63 18.37A9 9 0 1 0 13 3zm-1 5v5l4.25 2.52.77-1.28-3.52-2.09V8H12z"/></svg></span>
+        <span class="tab-label">Riwayat<br>Pinjam</span>
+      </button>
+      <button class="tab" data-tab="backup" role="tab">
+        <span class="tab-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 4.02 2 6.5v11C2 19.98 6.48 22 12 22s10-2.02 10-4.5v-11C22 4.02 17.52 2 12 2zm8 15.5c0 1.38-3.58 2.5-8 2.5s-8-1.12-8-2.5V15c1.78 1.18 4.77 1.75 8 1.75s6.22-.57 8-1.75v2.5zm0-5c0 1.38-3.58 2.5-8 2.5s-8-1.12-8-2.5V10c1.78 1.18 4.77 1.75 8 1.75s6.22-.57 8-1.75v2.5zm-8-2.25C7.58 10.25 4 9.13 4 7.75S7.58 5.25 12 5.25s8 1.12 8 2.5-3.58 2.25-8 2.25z"/></svg></span>
+        <span class="tab-label">Manajemen<br>Data</span>
+      </button>
+    </nav>
+
+    <!-- ══════════════════════════════
+         DASHBOARD
+    ══════════════════════════════ -->
+    <section class="view" id="dashboard" role="tabpanel">
+
+      <!-- Stats -->
+      <div class="stats" aria-hidden="false">
+        <div class="stat">
+          <div class="n" id="totalN">0</div>
+          <div class="label">Total</div>
+        </div>
+        <div class="stat">
+          <div class="n" id="availN">0</div>
+          <div class="label">Tersedia</div>
+        </div>
+        <div class="stat">
+          <div class="n" id="borrowedN">0</div>
+          <div class="label">Dipinjam</div>
+        </div>
+      </div>
+
+      <!-- Quick QR Scan -->
+      <div id="dashboardQuickScanArea">
+        <button class="btn qr-scan-btn" type="button" id="quickScanQrBtn">
+          <span class="qr-scan-btn-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h7v7H3V3zm1 1v5h5V4H4zm1 1h3v3H5V5zm8-2h7v7h-7V3zm1 1v5h5V4h-5zm1 1h3v3h-3V5zM3 13h7v7H3v-7zm1 1v5h5v-5H4zm1 1h3v3H5v-3zm11 0h2v2h-2v-2zm-3-1h2v2h-2v-2zm0 3h2v2h-2v-2zm3 0h2v2h-2v-2zm0 3h2v2h-2v-2zm-3 0h2v2h-2v-2zm6-6h2v2h-2v-2zm0 3h2v2h-2v-2zm0 3h2v2h-2v-2z"/></svg>
+          </span>
+          <span class="qr-scan-btn-copy">
+            <strong>Scan QR</strong>
+            <small>Peminjaman dan Pengembalian</small>
+          </span>
+          <span class="qr-scan-btn-badge">Smart</span>
+        </button>
+      </div>
+
+      <!-- Search -->
+      <div class="search">
+        <input aria-label="Cari barang" id="q" placeholder="Cari barang, kategori, peminjam…" type="search"/>
+        <button class="btn ghost" id="clearSearch" title="Hapus pencarian">Bersihkan</button>
+      </div>
+
+      <!-- Filter chips -->
+      <div class="actions chips" id="dashboardFilters">
+        <button class="btn ghost active" data-dash-filter="all" type="button">Semua</button>
+        <button class="btn ghost" data-dash-filter="available" type="button">Tersedia</button>
+        <button class="btn ghost" data-dash-filter="borrowed" type="button">Dipinjam</button>
+      </div>
+
+      <!-- Item list -->
+      <div aria-live="polite" class="list" id="items"></div>
+
+    </section>
+
+    <!-- ══════════════════════════════
+         KELOLA BARANG
+    ══════════════════════════════ -->
+    <section class="view" hidden id="manage">
+
+      <!-- Add new item -->
+      <div class="section-box">
+        <div class="section-title"><svg class="title-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M21 8.5 12 3 3 8.5v7L12 21l9-5.5v-7ZM12 5.3l6.5 4L12 13 5.5 9.3 12 5.3Zm-7 5.2 6 3.7v4.5l-6-3.7v-4.5Zm8 8.2v-4.5l6-3.7v4.5l-6 3.7Z"/></svg> Tambah Barang Baru</div>
+        <form autocomplete="off" class="form" id="addForm">
+          <div>
+            <label for="name">Nama Barang</label>
+            <input class="input" id="name" placeholder="Contoh: MacBook Pro" required type="text"/>
           </div>
           <div>
-            <div class="hero-login-title">Portal Sekolah</div>
-            <div class="hero-login-sub">Masuk sebagai operator sekolah</div>
-          </div>
-        </div>
-      </div>
-      <div class="card">
-        <div id="schoolLoginAlert"></div>
-        <div class="form-group">
-          <label>NPSN (Username)</label>
-          <input type="text" id="sl_npsn" placeholder="Contoh: 20400001">
-        </div>
-        <div class="form-group">
-          <label>Password</label>
-          <input type="password" id="sl_pass" placeholder="Password Anda">
-        </div>
-        <button class="btn btn-primary btn-full" onclick="schoolLogin()">Masuk</button>
-        <div class="divider"></div>
-        <p class="text-sm text-center">Lupa password? Hubungi administrator sistem</p>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ==================== PAGE: DASHBOARD SEKOLAH ==================== -->
-<div class="page" id="page-school-dash">
-  <div class="hero">
-    <div class="hero-title">Dashboard Sekolah</div>
-    <div class="hero-sub" id="schoolDashName">Selamat datang</div>
-    <div class="hero-badge"><span id="schoolDashNPSN"></span></div>
-  </div>
-
-  <div id="firstLoginBanner" class="alert alert-warning hidden">
-    <div class="alert-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
-    <div>
-      <strong>Login Pertama Terdeteksi</strong><br>
-      Demi keamanan akun, kami sarankan untuk segera mengganti password Anda.
-      <div class="mt-8">
-        <button class="btn btn-sm btn-outline" onclick="openChangePass()">Ganti Password Sekarang</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="stats-grid" id="schoolStats">
-    <div class="stat-card"><div class="stat-num" id="sTotal">0</div><div class="stat-label">Total Laporan</div></div>
-    <div class="stat-card"><div class="stat-num" id="sNew">0</div><div class="stat-label">Laporan Baru</div></div>
-    <div class="stat-card"><div class="stat-num" id="sProc">0</div><div class="stat-label">Dalam Proses</div></div>
-    <div class="stat-card"><div class="stat-num" id="sDone">0</div><div class="stat-label">Selesai</div></div>
-  </div>
-
-  <div id="schoolDashAlert"></div>
-
-  <div class="card">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
-      <div class="card-title" style="margin-bottom:0">Daftar Laporan Masuk</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-sm btn-outline" id="schoolRefreshBtn" onclick="refreshSchoolTickets()" style="gap:6px;font-size:12px">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.13-3.36L23 10M1 14l5.36 4.36A9 9 0 0020.49 15"/></svg>
-          Refresh Data
-        </button>
-        <button class="btn btn-sm btn-outline" onclick="printTicketsPDF()" style="gap:6px;font-size:12px">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-          Cetak / Ekspor PDF
-        </button>
-      </div>
-    </div>
-    <div class="search-bar">
-      <input type="text" placeholder="Cari laporan..." id="schoolTicketSearch" oninput="renderSchoolTickets()">
-      <div class="search-bar-chips">
-        <button class="filter-chip active" onclick="filterSchoolTickets('all',this)">Semua</button>
-        <button class="filter-chip" onclick="filterSchoolTickets('Baru',this)">Baru</button>
-        <button class="filter-chip" onclick="filterSchoolTickets('Dalam Proses',this)">Dalam Proses</button>
-        <button class="filter-chip" onclick="filterSchoolTickets('Selesai',this)">Selesai</button>
-      </div>
-    </div>
-    <div id="schoolTicketList"></div>
-  </div>
-</div>
-
-<!-- ==================== PAGE: LOGIN ADMIN ==================== -->
-<div class="page" id="page-admin-login">
-  <div class="login-wrap">
-    <div class="login-panel">
-      <div class="hero-login">
-        <div class="hero-login-header">
-          <div class="hero-login-icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.95)" stroke-width="2">
-              <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-            </svg>
+            <label for="category">Kategori</label>
+            <input class="input" id="category" placeholder="Kategori (opsional)" type="text"/>
           </div>
           <div>
-            <div class="hero-login-title">Portal Administrator</div>
-            <div class="hero-login-sub">Masuk sebagai admin sistem SiLapor</div>
+            <label for="desc">Deskripsi</label>
+            <input class="input" id="desc" placeholder="Deskripsi singkat (opsional)" type="text"/>
           </div>
-        </div>
-      </div>
-      <div class="card">
-        <div id="adminLoginAlert"></div>
-        <div class="form-group">
-          <label>Username Admin</label>
-          <input type="text" id="al_user" placeholder="Username admin">
-        </div>
-        <div class="form-group">
-          <label>Password</label>
-          <input type="password" id="al_pass" placeholder="Password administrator">
-        </div>
-        <button class="btn btn-primary btn-full" onclick="adminLogin()">Masuk sebagai Admin</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ==================== PAGE: DASHBOARD ADMIN ==================== -->
-<div class="page" id="page-admin-dash">
-  <div class="hero">
-    <div class="hero-title">Panel Administrator</div>
-    <div class="hero-sub">Kelola seluruh data sekolah dan monitoring laporan</div>
-  </div>
-
-  <div class="tabs">
-    <div class="tab active" onclick="adminTab('overview',this)">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-      </svg>
-      Ringkasan
-    </div>
-    <div class="tab" onclick="adminTab('schools',this)">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-        <polyline points="9 22 9 12 15 12 15 22"/>
-      </svg>
-      Data Sekolah
-    </div>
-    <div class="tab" onclick="adminTab('reports',this)">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-        <polyline points="14 2 14 8 20 8"/>
-        <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-      </svg>
-      Semua Laporan
-    </div>
-    <div class="tab" onclick="adminTab('users',this)">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
-        <circle cx="9" cy="7" r="4"/>
-        <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
-      </svg>
-      User Sekolah
-    </div>
-  </div>
-
-  <!-- Tab: Ringkasan -->
-  <div id="admin-overview">
-    <div class="stats-grid">
-      <div class="stat-card"><div class="stat-num" id="aTotal">0</div><div class="stat-label">Total Laporan</div></div>
-      <div class="stat-card"><div class="stat-num" id="aNew">0</div><div class="stat-label">Baru</div></div>
-      <div class="stat-card"><div class="stat-num" id="aProc">0</div><div class="stat-label">Dalam Proses</div></div>
-      <div class="stat-card"><div class="stat-num" id="aDone">0</div><div class="stat-label">Selesai</div></div>
-    </div>
-    <div class="card">
-      <div class="card-title">10 Laporan Terbaru</div>
-      <div id="adminRecentList"></div>
-    </div>
-  </div>
-
-  <!-- Tab: Data Sekolah -->
-  <div id="admin-schools" class="hidden">
-
-    <div class="card">
-      <div class="card-title">Impor Data Sekolah dari Excel</div>
-      <div class="alert alert-info">
-        <div class="alert-icon">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-          </svg>
-        </div>
-        <div>
-          Format Excel: NPSN | Nama Sekolah | Jenjang | Kota | Password (opsional)<br>
-          <small>Contoh: 12345678 | SD Maju Jaya | SD | Jakarta | sandi123</small>
-        </div>
-      </div>
-      <div class="form-group">
-        <label>Pilih File Excel (.xlsx atau .xls)</label>
-        <div class="input-with-btn">
-          <input type="file" id="excelFileInput" accept=".xlsx,.xls" onchange="previewExcelData(this)">
-          <button class="btn btn-outline" onclick="downloadExcelTemplate()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            Template
-          </button>
-        </div>
-      </div>
-      <div id="excelPreview" class="hidden">
-        <p class="text-sm mt-8">Preview Data:</p>
-        <div class="table-wrap table-scroll mt-8">
-          <table>
-            <thead><tr><th>NPSN</th><th>Nama Sekolah</th><th>Jenjang</th><th>Kota</th><th>Password</th></tr></thead>
-            <tbody id="excelTableBody"></tbody>
-          </table>
-        </div>
-        <div class="btn-group mt-16">
-          <button class="btn btn-primary" onclick="importExcelData()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-              <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
-            Import Data
-          </button>
-          <button class="btn btn-outline" onclick="cancelExcelImport()">Batal</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Impor dari Google Sheet</div>
-      <div class="alert alert-info">
-        <div class="alert-icon">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-          </svg>
-        </div>
-        <div>
-          Buat Google Sheet dengan kolom: NPSN | Nama Sekolah | Jenjang | Kota | Password (opsional)<br>
-          <small>Pastikan sheet di-share dengan "Siapa saja dapat melihat". Salin URL atau Sheet ID-nya.</small>
-        </div>
-      </div>
-      <div class="form-group">
-        <label>URL Google Sheet atau Sheet ID</label>
-        <div class="input-with-btn">
-          <input type="text" id="googleSheetUrl" placeholder="https://docs.google.com/spreadsheets/d/SHEET_ID/edit atau SHEET_ID saja">
-          <button class="btn btn-primary" onclick="importFromGoogleSheet()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-            </svg>
-            Ambil Data
-          </button>
-        </div>
-      </div>
-      <div id="googleSheetLoading" class="hidden" style="text-align:center;padding:16px">
-        <p class="text-sm">Mengambil data dari Google Sheet...</p>
-      </div>
-      <div id="googleSheetPreview" class="hidden">
-        <p class="text-sm mt-8">Preview Data:</p>
-        <div class="table-wrap table-scroll mt-8">
-          <table>
-            <thead><tr><th>NPSN</th><th>Nama Sekolah</th><th>Jenjang</th><th>Kota</th><th>Password</th></tr></thead>
-            <tbody id="googleSheetTableBody"></tbody>
-          </table>
-        </div>
-        <div class="btn-group mt-16">
-          <button class="btn btn-primary" onclick="confirmGoogleSheetImport()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="20 6 9 17 4 12"/>
-            </svg>
-            Konfirmasi & Import
-          </button>
-          <button class="btn btn-outline" onclick="cancelGoogleSheetImport()">Batal</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Tambah Data Sekolah</div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>NPSN <span>*</span></label>
-          <input type="text" id="a_npsn" placeholder="8 digit NPSN" maxlength="8">
-        </div>
-        <div class="form-group">
-          <label>Nama Sekolah <span>*</span></label>
-          <input type="text" id="a_sname" placeholder="Nama lengkap sekolah">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Jenjang</label>
-          <select id="a_level">
-            <option>SD</option><option>SMP</option><option>SMA</option><option>SMK</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Kota/Kabupaten</label>
-          <input type="text" id="a_city" placeholder="Kota">
-        </div>
-      </div>
-      <div class="form-group">
-        <label>Password Awal Sekolah</label>
-        <input type="text" id="a_defpass" placeholder="Biarkan kosong untuk gunakan NPSN sebagai password">
-      </div>
-      <button class="btn btn-primary" onclick="addSchool()">+ Tambah Sekolah</button>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Daftar Sekolah Terdaftar</div>
-      <div class="search-bar">
-        <input type="text" id="schoolListSearch" placeholder="Cari sekolah..." oninput="renderSchoolTable()">
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr><th>NPSN</th><th>Nama Sekolah</th><th>Jenjang</th><th>Kota</th><th>Laporan</th><th>Aksi</th></tr>
-          </thead>
-          <tbody id="schoolTableBody"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- Tab: Semua Laporan -->
-  <div id="admin-reports" class="hidden">
-    <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
-        <div class="card-title" style="margin-bottom:0">Semua Laporan Sistem</div>
-        <button class="btn btn-sm btn-outline" onclick="printTicketsPDF()" style="gap:6px;font-size:12px">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-          Cetak / Ekspor PDF
-        </button>
-      </div>
-      <div class="search-bar">
-        <input type="text" id="adminReportSearch" placeholder="Cari berdasarkan sekolah, topik, pelapor..." oninput="renderAdminTickets()">
-        <div class="search-bar-chips">
-          <button class="filter-chip active" onclick="filterAdminTickets('all',this)">Semua</button>
-          <button class="filter-chip" onclick="filterAdminTickets('Baru',this)">Baru</button>
-          <button class="filter-chip" onclick="filterAdminTickets('Dalam Proses',this)">Dalam Proses</button>
-          <button class="filter-chip" onclick="filterAdminTickets('Selesai',this)">Selesai</button>
-        </div>
-      </div>
-      <div id="adminAllTickets"></div>
-    </div>
-  </div>
-
-  <!-- Tab: User Sekolah -->
-  <div id="admin-users" class="hidden">
-    <div class="card">
-      <div class="card-title">Kelola User Sekolah</div>
-      <div class="alert alert-info">
-        <div class="alert-icon">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-          </svg>
-        </div>
-        <div>User sekolah menggunakan NPSN sebagai username.</div>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr><th>NPSN</th><th>Nama Sekolah</th><th>Login Pertama</th><th>Reset Password</th></tr>
-          </thead>
-          <tbody id="userTableBody"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-</div><!-- /page-admin-dash -->
-
-<!-- ==================== FOOTER ==================== -->
-<footer class="footer-animated">
-  <ul class="footer-circles">
-    <li></li>
-    <li></li>
-    <li></li>
-    <li></li>
-    <li></li>
-    <li></li>
-    <li></li>
-    <li></li>
-    <li></li>
-    <li></li>
-  </ul>
-  <div class="footer-content">
-    <div>
-      <p class="footer-label">Penata Kelola Sistem dan Teknologi Informasi</p>
-      <p class="footer-title">Suku Dinas Pendidikan Jakarta Timur I</p>
-    </div>
-    <div class="footer-logos">
-      <img src="1-dki_jakarta.png" alt="Logo DKI Jakarta" class="footer-logo">
-      <img src="2-jakarta_timur.png" alt="Logo Jakarta Timur" class="footer-logo">
-      <img src="3-disdik_dki.png" alt="Logo Disdik DKI" class="footer-logo">
-      <img src="4-silapor.png" alt="Logo SiLapor" class="footer-logo">
-      <img src="5-sudindik.png" alt="Logo Sudindik" class="footer-logo footer-logo--wide">
-    </div>
-    <div class="divider"></div>
-    <p class="footer-dev-label">Dikembangkan oleh:</p>
-    <p class="footer-dev-names">Twin Insani · Ilham Maulana · Muhammad Arief</p>
-    <p class="footer-copy">© 2026 SiLapor - Sistem Laporan Sekolah</p>
-  </div>
-</footer>
-
-</div><!-- /main-content -->
-
-<!-- ==================== MODALS ==================== -->
-
-<!-- Modal: Detail Tiket -->
-<div class="modal-overlay" id="ticketModal">
-  <div class="modal">
-    <div class="modal-header">
-      <div class="modal-title" id="modalTicketId">Detail Laporan</div>
-      <button class="modal-close" onclick="closeModal('ticketModal')">✕</button>
-    </div>
-    <div id="modalTicketContent"></div>
-  </div>
-</div>
-
-<!-- Modal: Ganti Password Sekolah -->
-<div class="modal-overlay" id="changePassModal">
-  <div class="modal">
-    <div class="modal-header">
-      <div class="modal-title">Ganti Password</div>
-      <button class="modal-close" onclick="closeModal('changePassModal')">✕</button>
-    </div>
-    <div id="changePassAlert"></div>
-    <div class="form-group">
-      <label>Password Baru <span>*</span></label>
-      <input type="password" id="newPass1" placeholder="Minimal 6 karakter">
-    </div>
-    <div class="form-group">
-      <label>Konfirmasi Password <span>*</span></label>
-      <input type="password" id="newPass2" placeholder="Ulangi password baru">
-    </div>
-    <button class="btn btn-primary btn-full" onclick="saveNewPassword()">Simpan Password Baru</button>
-  </div>
-</div>
-
-<!-- Modal: Ganti Password Sekolah (mandiri, dengan password lama) -->
-<div class="modal-overlay" id="schoolChangePassModal">
-  <div class="modal">
-    <div class="modal-header">
-      <div class="modal-title">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
-        </svg>
-        Ganti Password Sekolah
-      </div>
-      <button class="modal-close" onclick="closeModal('schoolChangePassModal')">✕</button>
-    </div>
-    <div id="schoolChangePassAlert"></div>
-    <div class="form-group">
-      <label>Password Saat Ini <span>*</span></label>
-      <input type="password" id="schoolOldPass" placeholder="Masukkan password saat ini">
-    </div>
-    <div class="form-group">
-      <label>Password Baru <span>*</span></label>
-      <input type="password" id="schoolNewPass1" placeholder="Minimal 8 karakter">
-    </div>
-    <div class="form-group">
-      <label>Konfirmasi Password Baru <span>*</span></label>
-      <input type="password" id="schoolNewPass2" placeholder="Ulangi password baru">
-    </div>
-    <button class="btn btn-primary btn-full" onclick="saveSchoolPassword()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
-        <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
-      </svg>
-      Simpan Password Baru
-    </button>
-  </div>
-</div>
-
-<!-- Modal: Reset Password Sekolah (oleh admin) -->
-<div class="modal-overlay" id="resetPassModal">
-  <div class="modal">
-    <div class="modal-header">
-      <div class="modal-title">Reset Password Sekolah</div>
-      <button class="modal-close" onclick="closeModal('resetPassModal')">✕</button>
-    </div>
-    <div id="resetPassContent"></div>
-    <div class="form-group">
-      <label>Password Baru</label>
-      <input type="text" id="resetPassVal" placeholder="Kosongkan untuk gunakan NPSN sebagai password">
-    </div>
-    <button class="btn btn-danger btn-full" onclick="doResetPass()">Reset Password</button>
-  </div>
-</div>
-
-<!-- Modal: Ganti Password Admin -->
-<div class="modal-overlay" id="adminChangePassModal">
-  <div class="modal">
-    <div class="modal-header">
-      <div class="modal-title">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
-        </svg>
-        Ganti Password Administrator
-      </div>
-      <button class="modal-close" onclick="closeModal('adminChangePassModal')">✕</button>
-    </div>
-    <div id="adminChangePassAlert"></div>
-    <div class="form-group">
-      <label>Password Lama <span>*</span></label>
-      <input type="password" id="adminOldPass" placeholder="Password saat ini">
-    </div>
-    <div class="form-group">
-      <label>Password Baru <span>*</span></label>
-      <input type="password" id="adminNewPass1" placeholder="Minimal 8 karakter">
-    </div>
-    <div class="form-group">
-      <label>Konfirmasi Password Baru <span>*</span></label>
-      <input type="password" id="adminNewPass2" placeholder="Ulangi password baru">
-    </div>
-    <button class="btn btn-primary btn-full" onclick="saveAdminPassword()">Simpan Password Baru</button>
-  </div>
-</div>
-
-<!-- Modal: Edit Data Sekolah -->
-<div class="modal-overlay" id="editSchoolModal">
-  <div class="modal">
-    <div class="modal-header">
-      <div class="modal-title">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-          <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-        </svg>
-        Edit Data Sekolah
-      </div>
-      <button class="modal-close" onclick="closeEditSchool()">✕</button>
-    </div>
-    <div class="form-group">
-      <label>NPSN <span>*</span></label>
-      <input type="text" id="e_npsn" placeholder="8 digit NPSN" disabled class="input-disabled">
-    </div>
-    <div class="form-group">
-      <label>Nama Sekolah <span>*</span></label>
-      <input type="text" id="e_sname" placeholder="Nama lengkap sekolah">
-    </div>
-    <div class="form-group">
-      <label>Jenjang <span>*</span></label>
-      <select id="e_level">
-        <option>SD</option><option>SMP</option><option>SMA</option><option>SMK</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>Kota/Kabupaten <span>*</span></label>
-      <input type="text" id="e_city" placeholder="Kota">
-    </div>
-    <button class="btn btn-primary btn-full" onclick="saveEditSchool()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
-        <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
-      </svg>
-      Simpan Perubahan
-    </button>
-  </div>
-</div>
-
-<!-- Modal: Lightbox Foto -->
-<div class="modal-overlay" id="photoLightboxModal" onclick="if(event.target===this)closePhotoLightbox()">
-  <div class="lightbox-wrap">
-    <button class="lightbox-close" onclick="closePhotoLightbox()">✕</button>
-    <img id="photoLightboxImg" src="" alt="Foto" class="lightbox-img">
-  </div>
-</div>
-
-<!-- Modal: Lupa Nomor Tiket -->
-<div class="modal-overlay" id="lupaTiketModal">
-  <div class="modal" style="max-width:480px">
-    <div class="modal-header">
-      <div class="modal-title">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:6px">
-          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        Lupa Nomor Tiket
-      </div>
-      <button class="modal-close" onclick="closeLupaTiket()">✕</button>
-    </div>
-
-    <!-- Step 1: Form verifikasi -->
-    <div id="lupaTiketStep1">
-      <p class="text-sm" style="color:var(--text-2);margin-bottom:16px">
-        Masukkan nomor HP dan pilih sekolah yang Anda gunakan saat membuat laporan. Kami akan menampilkan nomor tiket Anda.
-      </p>
-      <div id="lupaTiketAlert"></div>
-
-      <div class="form-group">
-        <label>Nomor WhatsApp <span>*</span></label>
-        <input type="tel" id="lt_wa" placeholder="08xxxxxxxxxx" maxlength="15" inputmode="numeric"
-          oninput="filterLupaTiketWA(this)">
+          <div class="hr"></div>
+          <button class="btn primary" type="submit">Tambah Barang</button>
+        </form>
       </div>
 
-      <div class="form-group">
-        <label>Email <span style="font-weight:400;color:var(--text-3)">(opsional, jika diisi saat lapor)</span></label>
-        <input type="email" id="lt_email" placeholder="email@contoh.com">
+      <!-- Search + filter -->
+      <div class="search">
+        <input aria-label="Cari barang" id="manageSearch" placeholder="Cari barang…" type="search"/>
+        <button class="btn ghost" id="clearManageSearch" title="Hapus pencarian">Bersihkan</button>
+      </div>
+      <div class="actions chips">
+        <button class="btn ghost active" data-filter="all" type="button">Semua</button>
+        <button class="btn ghost" data-filter="available" type="button">Tersedia</button>
+        <button class="btn ghost" data-filter="borrowed" type="button">Dipinjam</button>
       </div>
 
-      <div class="form-group">
-        <label>Nama Sekolah <span>*</span></label>
-        <div class="search-select">
-          <input type="text" id="lt_schoolSearch" placeholder="Ketik nama sekolah..."
-            oninput="filterLupaTiketSchools()" onfocus="showLupaTiketDropdown()" autocomplete="off">
-          <div class="dropdown-list" id="lt_schoolDropdown"></div>
-        </div>
-        <input type="hidden" id="lt_school_id">
-        <input type="hidden" id="lt_school_name">
-      </div>
+      <!-- Manage list -->
+      <div class="list" id="manageList"></div>
 
-      <!-- CAPTCHA -->
-      <div class="captcha-box" style="margin-bottom:16px">
-        <div style="width:100%">
-          <p class="text-sm" style="font-weight:600;color:var(--text-2)">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              style="display:inline;vertical-align:-2px;margin-right:4px">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            </svg>
-            Verifikasi Anti-Bot — Hitung hasil berikut:
-          </p>
-          <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
-            <div class="captcha-math" id="lt_captchaQ"></div>
-            <span class="text-sm">=</span>
-            <input type="number" class="captcha-input" id="lt_captchaAns" placeholder="?" oninput="checkLupaTiketCaptcha()">
+    </section>
+
+
+
+
+
+    <!-- ══════════════════════════════
+         RIWAYAT
+    ══════════════════════════════ -->
+    <section class="view" hidden id="history">
+      <div class="history-controls">
+        <input class="wide-month" id="historyMonth" type="month"/>
+        <button class="btn export-pdf" id="exportMonthPdf"><svg class="inline-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Zm0 2.5L17.5 8H14V4.5ZM8 14h2.5a2.5 2.5 0 1 0 0-5H8v5Zm2-3.5a1 1 0 1 1 0 2H9.5v-2H10Zm3 3.5h1.5a2.5 2.5 0 1 0 0-5H13v5Zm1.5-3.5a1 1 0 1 1 0 2h-.5v-2h.5ZM17 9h-2v5h1.5v-1.75H17V11h-.5v-.5H17V9Z"/></svg> Ekspor PDF</button>
+      </div>
+      <div class="list" id="historyList"></div>
+    </section>
+
+    <!-- ══════════════════════════════
+         MANAJEMEN DATA
+    ══════════════════════════════ -->
+    <section class="view" hidden id="backup">
+
+      <!-- School settings -->
+      <div class="section-box">
+        <div class="section-title"><svg class="title-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12 3 9 4.5-9 4.5L3 7.5 12 3Zm0 10 6-3v5h2V9l1-.5V18h-2v-2H5v2H3V8.5L12 13Z"/></svg> Pengaturan Sekolah</div>
+        <div class="form">
+          <div>
+            <label class="config-label" for="schoolName">Nama Sekolah</label>
+            <input class="input" id="schoolName" placeholder="Masukkan nama sekolah" type="text"/>
           </div>
-          <div id="lt_captchaStatus" style="font-size:12px;margin-top:6px;height:18px;font-weight:500"></div>
-          <p class="text-sm" style="margin-top:4px;opacity:0.7">Jawaban akan diverifikasi secara otomatis</p>
+          <div>
+            <label class="config-label" for="headmasterName">Nama Kepala Sekolah</label>
+            <input class="input" id="headmasterName" placeholder="Masukkan nama kepala sekolah" type="text"/>
+          </div>
+          <div>
+            <label class="config-label" for="headmasterNIP">NIP Kepala Sekolah</label>
+            <input class="input" id="headmasterNIP" placeholder="Masukkan NIP kepala sekolah" type="text"/>
+          </div>
+          <p class="note">Data ini akan ditampilkan pada laporan PDF yang diekspor dari halaman Riwayat.</p>
         </div>
       </div>
 
-      <button class="btn btn-primary btn-full" onclick="submitLupaTiket()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-        </svg>
-        Cari Nomor Tiket Saya
-      </button>
-    </div>
+      <!-- Data actions -->
+      <div class="section-box">
+        <div class="section-title"><svg class="title-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4h4a2 2 0 0 1 2 2v1h4a2 2 0 0 1 2 2v2H2V9a2 2 0 0 1 2-2h4V6a2 2 0 0 1 2-2Zm4 3V6h-4v1h4Zm8 6v7a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-7h8v2h4v-2h8Z"/></svg> Manajemen Data</div>
+        <div class="horizontal-actions">
+          <button class="btn export" id="exportBtn" title="Ekspor semua data"><svg class="inline-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4ZM7 5h8v4H7V5Zm12 14H5V11h14v8ZM8 13h8v4H8v-4Z"/></svg> Ekspor</button>
+          <button class="btn import" id="importBtn" title="Impor data dari file"><svg class="inline-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4 8 6H4a2 2 0 0 0-2 2v8h2V8h4.8l2-2H20v4h2V6a2 2 0 0 0-2-2h-10Zm2 6v4H8l4 4 4-4h-4v-4h-2ZM2 18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4h-2v4H4v-4H2v4Z"/></svg> Impor</button>
+          <button class="btn danger" id="clearAll"><svg class="inline-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 3h6l1 2h5v2H3V5h5l1-2Zm1 6h2v9h-2V9Zm4 0h2v9h-2V9ZM6 9h2v9H6V9Z"/></svg> Hapus</button>
+        </div>
+      </div>
 
-    <!-- Step 2: Hasil tiket -->
-    <div id="lupaTiketStep2" style="display:none">
-      <div id="lupaTiketResults"></div>
-      <button class="btn btn-outline btn-full" style="margin-top:12px" onclick="resetLupaTiket()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.13-3.36L23 10M1 14l5.36 4.36A9 9 0 0020.49 15"/>
-        </svg>
-        Cari Lagi
-      </button>
+    </section>
+
+  </main>
+
+  <!-- ── Footer ── -->
+  <footer class="footer">
+    <div class="small">Data disimpan di perangkat Anda.</div>
+    <div class="small">Dikembangkan oleh: Twin Insani, S.Kom</div>
+  </footer>
+
+
+  <!-- ══ Modal Peminjaman ══ -->
+  <div class="form-modal" id="borrowModal" aria-modal="true" role="dialog" aria-labelledby="borrowModalTitle">
+    <div class="form-modal-sheet">
+      <div class="form-modal-drag-handle" id="borrowDragHandle"></div>
+      <div class="form-modal-header">
+        <div class="form-modal-title" id="borrowModalTitle">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M9 5v2H6.5l-.94 8.45A2 2 0 0 0 7.54 18h8.92a2 2 0 0 0 1.98-2.55L17.5 7H15V5a3 3 0 0 0-6 0m2 0a1 1 0 0 1 2 0v2h-2V5M7 20h10v2H7v-2Z"/></svg>
+          Catat Peminjaman
+        </div>
+        <button class="form-modal-close" id="closeBorrowModal" aria-label="Tutup">✕</button>
+      </div>
+      <div class="modal-item-info" id="borrowItemInfo"></div>
+      <div class="form-modal-body">
+        <form class="form" id="borrowForm" autocomplete="off">
+
+          <label style="display:none">
+            <select class="select" id="borrowSelect" required>
+              <option value="">Pilih barang yang tersedia…</option>
+            </select>
+          </label>
+
+          <label>
+            <div class="field-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+              Nama Peminjam
+            </div>
+            <input class="input" id="borrower" placeholder="Nama lengkap peminjam" required type="text"/>
+          </label>
+
+          <label style="display:none"><input class="input" id="borrowDate" required type="date"/></label>
+
+          <label>
+            <div class="field-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>
+              Perkiraan Pengembalian <span style="font-weight:400;color:var(--text-3)">(opsional)</span>
+            </div>
+            <input class="input" id="expectedReturn" type="date"/>
+          </label>
+
+          <label>
+            <div class="field-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 15.2A3.2 3.2 0 0 1 8.8 12 3.2 3.2 0 0 1 12 8.8 3.2 3.2 0 0 1 15.2 12 3.2 3.2 0 0 1 12 15.2M9 2 7.17 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3.17L15 2Z"/></svg>
+              Foto Peminjaman
+            </div>
+            <div class="photo-upload-container" id="borrowPhotoContainer">
+              <input accept="image/*" capture="environment" id="borrowPhoto" name="borrowPhoto" type="file"/>
+              <div class="upload-placeholder">
+                <div class="upload-icon"><svg class="inline-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9 2 7.17 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3.17L15 2H9Zm3 5a5 5 0 1 1 0 10 5 5 0 0 1 0-10Z"/></svg></div>
+                <p>Ambil Foto</p>
+                <small>Ketuk untuk ambil foto bukti peminjaman</small>
+              </div>
+              <div class="photo-preview" id="borrowPreview"></div>
+            </div>
+          </label>
+
+          <div class="modal-actions">
+            <button class="btn ghost" type="button" id="cancelBorrowBtn" style="flex:1">Batal</button>
+            <button class="btn primary" type="submit" style="flex:1">Catat Peminjaman</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Modal Pengembalian ══ -->
+  <div class="form-modal" id="returnModal" aria-modal="true" role="dialog" aria-labelledby="returnModalTitle">
+    <div class="form-modal-sheet">
+      <div class="form-modal-drag-handle" id="returnDragHandle"></div>
+      <div class="form-modal-header">
+        <div class="form-modal-title" id="returnModalTitle">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.41L5.83 13H21V7h-2z"/></svg>
+          Catat Pengembalian
+        </div>
+        <button class="form-modal-close" id="closeReturnModal" aria-label="Tutup">✕</button>
+      </div>
+      <div class="modal-item-info" id="returnItemInfo"></div>
+      <div class="form-modal-body">
+        <form class="form" id="returnForm" autocomplete="off">
+
+          <label style="display:none">
+            <select class="select" id="returnSelect" required>
+              <option value="">Pilih barang yang dipinjam…</option>
+            </select>
+          </label>
+
+          <label style="display:none"><input class="input" id="returnDate" required type="date"/></label>
+
+          <label>
+            <div class="field-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 15.2A3.2 3.2 0 0 1 8.8 12 3.2 3.2 0 0 1 12 8.8 3.2 3.2 0 0 1 15.2 12 3.2 3.2 0 0 1 12 15.2M9 2 7.17 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3.17L15 2Z"/></svg>
+              Foto Pengembalian
+            </div>
+            <div class="photo-upload-container" id="returnPhotoContainer">
+              <input accept="image/*" capture="environment" id="returnPhoto" name="returnPhoto" type="file"/>
+              <div class="upload-placeholder">
+                <div class="upload-icon"><svg class="inline-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9 2 7.17 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3.17L15 2H9Zm3 5a5 5 0 1 1 0 10 5 5 0 0 1 0-10Z"/></svg></div>
+                <p>Ambil Foto</p>
+                <small>Ketuk untuk ambil foto bukti pengembalian</small>
+              </div>
+              <div class="photo-preview" id="returnPreview"></div>
+            </div>
+          </label>
+
+          <div class="modal-actions">
+            <button class="btn ghost" type="button" id="cancelReturnBtn" style="flex:1">Batal</button>
+            <button class="btn primary" type="submit" style="flex:1">Catat Pengembalian</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /.app -->
+
+<!-- ══ Modal Quick QR Scan ══ -->
+<div class="form-modal" id="quickScanModal" aria-modal="true" role="dialog" aria-labelledby="quickScanModalTitle">
+  <div class="form-modal-sheet scan-modal-sheet">
+    <div class="form-modal-header">
+      <div class="form-modal-title scan-modal-title" id="quickScanModalTitle">
+        <span class="scan-modal-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9 2 7.17 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3.17L15 2H9Zm3 5a5 5 0 1 1 0 10 5 5 0 0 1 0-10Z"/></svg></span>
+        <span>Scan QR Cepat</span>
+      </div>
+      <button class="form-modal-close" id="quickScanCloseBtn" aria-label="Tutup">✕</button>
+    </div>
+    <div class="scan-modal-body">
+      <p class="scan-modal-subtitle">Arahkan kamera ke QR aset untuk otomatis buka form peminjaman / pengembalian.</p>
+      <div id="quickQrScanner" class="qr-scanner-container" style="display:none;">
+        <video id="quickQrVideo" class="qr-video" autoplay playsinline muted></video>
+        <canvas id="quickQrCanvas" style="display:none;"></canvas>
+        <div class="qr-scanner-overlay">
+          <div class="qr-scanner-frame"></div>
+          <p class="qr-scanner-hint">Scan QR untuk otomatis pilih aksi</p>
+        </div>
+      </div>
+      <button class="btn ghost qr-cancel-btn" type="button" id="quickScanCancelBtn">Batal Scan</button>
     </div>
   </div>
 </div>
 
-<!-- Input file tersembunyi (follow-up foto) -->
-<input type="file" id="photoInput" accept="image/*" multiple hidden>
-<input type="file" id="followUpPhotoInput" accept="image/*" multiple hidden onchange="handleFollowUpPhotos(this)">
-<input type="file" id="followUpPhotoInputCamera" accept="image/*" capture="environment" multiple hidden onchange="handleFollowUpPhotos(this)">
-<input type="file" id="followUpPhotoInputGallery" accept="image/*" multiple hidden onchange="handleFollowUpPhotos(this)">
-
-<!-- Loading Overlay -->
-<div id="loadingOverlay">
-  <div class="spinner"></div>
-  <div class="loading-text">Menghubungkan ke database Firebase...</div>
+<!-- Progress overlay -->
+<div id="progressOverlay" style="display:none;">
+  <div>
+    <div id="progressText" style="margin-bottom:12px;font-weight:700;">Proses Berjalan…</div>
+    <div style="background:#e0f2fe;border-radius:8px;overflow:hidden;height:16px;">
+      <div id="progressBar" style="height:100%;width:0%;transition:width 0.3s;"></div>
+    </div>
+  </div>
 </div>
 
-<!-- Error Banner -->
-<div id="dbErrorBanner">
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:6px"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Gagal terhubung ke Firebase. Pastikan konfigurasi Firebase sudah benar dan koneksi internet tersedia.
-</div>
+<!-- Scripts -->
+<script src="jspdf.umd.min.js"></script>
+<script src="jspdf.plugin.autotable.min.js"></script>
+<script src="jsQR.js"></script>
+<!-- SheetJS untuk import/export Excel -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="app.js"></script>
+<script src="members.js"></script>
+<script src="fallback.js"></script>
 
-</div><!-- /app -->
+<!-- Tab navigation — replaces old .tab click handler -->
+<script>
+(function(){
+  // Wire tabs: toggle .active and show/hide views
+  document.querySelectorAll('.tab[data-tab]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      if(typeof showView === 'function') showView(btn.dataset.tab);
+    });
+  });
 
-<script type="module" src="script.js"></script>
-<script src="app.js" defer></script>
+  // Dashboard filter chips
+  document.querySelectorAll('[data-dash-filter]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('[data-dash-filter]').forEach(function(b){
+        b.classList.remove('active');
+      });
+      btn.classList.add('active');
+      if(typeof dashboardFilter !== 'undefined'){
+        dashboardFilter = btn.dataset.dashFilter;
+      }
+      if(typeof renderDashboardList === 'function') renderDashboardList();
+    });
+  });
+})();
+</script>
+
 </body>
 </html>

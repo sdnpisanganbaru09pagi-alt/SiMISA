@@ -1,2679 +1,2717 @@
-// app.js - Application Logic (Regular Script, defer)
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js")
+      .then(reg => console.log("SW registered:", reg))
+      .catch(err => console.error("SW registration failed:", err));
+  });
+}
+;
 
-// SVG Icon Helper Functions
-const SVGIcons = {
-  send: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>',
-  search: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>',
-  lock: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>',
-  envelope: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 01-2.06 0L2 7"/></svg>',
-  save: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
-  info: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
-  edit: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
-  clipboard: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>',
-  user: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
-  phone: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><path d="M12 18h.01"/></svg>',
-  building: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
-  check: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>',
-  x: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
-  gear: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6M4.22 4.22l4.24 4.24m5.08 0l4.24-4.24M1 12h6m6 0h6m-17.78 7.78l4.24-4.24m5.08 0l4.24 4.24"/></svg>',
-  clock: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
-};
+// Add this code to your app.js file, preferably near the top after the service worker registration
 
-// Database wrapper
-if (!window.DB) window.DB = { schools: [], tickets: [], admin: { username: 'admin', passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' } };
+/* PWA Install Notification */
+let deferredPrompt;
+let installNotificationShown = false;
 
-function showLoadingOverlay(show) {
-  const el = document.getElementById('loadingOverlay');
-  if (el) el.classList.toggle('hidden', !show);
+// Check if app was already installed
+function isAppInstalled() {
+  // Check if running in standalone mode (already installed)
+  return window.matchMedia('(display-mode: standalone)').matches || 
+         window.navigator.standalone === true;
 }
 
-function showDBError() {
-  const el = document.getElementById('dbErrorBanner');
-  if (el) el.classList.remove('hidden');
-}
-
-function loadDB() { return window.DB; }
-
-function normalizeSchoolId(value) {
-  return String(value ?? '').trim();
-}
-
-function getTicketSchoolId(ticket) {
-  if (!ticket) return '';
-  return normalizeSchoolId(ticket.schoolId || ticket.schoolID || ticket.npsn || ticket.schoolNpsn);
-}
-
-function isTicketForSchool(ticket, schoolId) {
-  return getTicketSchoolId(ticket) === normalizeSchoolId(schoolId);
-}
-
-function resolveTicketProgressData(ticket) {
-  const t = ticket || {};
-  const processNotes = t.processNotes || t.notes || '';
-  const completeNotes = t.completeNotes
-    || t.resolutionNotes
-    || t.finalNotes
-    || (t.status === 'Selesai' ? (t.notes || t.processNotes || '') : '');
-  const hasProcessPhotos = Array.isArray(t.processPhotos) && t.processPhotos.length > 0;
-  const hasCompletePhotos = Array.isArray(t.completePhotos) && t.completePhotos.length > 0;
-  const hasLegacyFollowUpPhotos = Array.isArray(t.followUpPhotos) && t.followUpPhotos.length > 0;
-
-  const processPhotos = hasProcessPhotos
-    ? t.processPhotos
-    : ((!hasCompletePhotos && t.status !== 'Selesai' && hasLegacyFollowUpPhotos) ? t.followUpPhotos : []);
-
-  const completePhotos = hasCompletePhotos
-    ? t.completePhotos
-    : ((t.status === 'Selesai' && hasLegacyFollowUpPhotos) ? t.followUpPhotos : []);
-
-  return { processNotes, completeNotes, processPhotos, completePhotos };
-}
-
-async function saveDB(db) {
-  window.DB = db;
-}
-
-async function initDB() {
-  return window.DB;
-}
-
-let currentUser = null;
-window.currentUser = currentUser;
-let schoolTicketFilter = 'all';
-let adminTicketFilter = 'all';
-let captchaA = 0, captchaB = 0;
-let captchaVerified = false;
-let resetTargetNPSN = '';
-let photoFiles = [];
-let followUpPhotoFiles = [];
-
-// ====================== SECURITY: Session Timeout ======================
-const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
-let sessionTimeoutId = null;
-
-// ====================== SECURITY: Login Attempt Limiter ======================
-const MAX_LOGIN_ATTEMPTS = 5;
-const LOGIN_LOCKOUT_MS = 5 * 60 * 1000; // 5 minutes
-const LOGIN_ATTEMPTS_KEY = 'SiLaporLoginAttempts';
-
-// ====================== SECURITY: Activity Log ======================
-const ACTIVITY_LOG_KEY = 'SiLaporActivityLog';
-const MAX_LOG_ENTRIES = 100;
-
-async function hashPassword(password) {
-  const data = new TextEncoder().encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-function isLegacyHash(value) {
-  return typeof value === 'string' && /^[0-9a-f]{64}$/i.test(value);
-}
-
-async function verifyPassword(plain, record) {
-  if (!record) return false;
-  if (record.passwordHash && isLegacyHash(record.passwordHash)) {
-    return await hashPassword(plain) === record.passwordHash;
-  }
-  if (record.password && record.password === plain) {
-    return true;
-  }
-  return false;
-}
-
-async function migrateSchoolPasswordHash(school) {
-  if (!school || !school.id) return;
-  if (school.password && !school.passwordHash) {
-    const newHash = await hashPassword(school.password);
-    school.passwordHash = newHash;
-    if (window.fbUpdateSchool) await window.fbUpdateSchool(school.id, { passwordHash: newHash });
-  }
-}
-
-async function migrateAdminPasswordHash(admin) {
-  if (!admin) return;
-  if (admin.password && !admin.passwordHash) {
-    const newHash = await hashPassword(admin.password);
-    admin.passwordHash = newHash;
-    if (window.fbSaveAdmin) await window.fbSaveAdmin({ username: admin.username, passwordHash: newHash });
-  }
-}
-
-function saveSessionUser(user) {
+// Check if user has previously dismissed install prompt
+function hasUserDismissedInstall() {
   try {
-    sessionStorage.setItem('SiLaporUser', JSON.stringify(user));
-    initSessionTimeout();
+    return localStorage.getItem('pwa_install_dismissed') === 'true';
   } catch (e) {
-    console.warn('Cannot save session user', e);
+    return false;
   }
 }
 
-function clearSessionUser() {
+// Mark install prompt as dismissed
+function markInstallDismissed() {
   try {
-    sessionStorage.removeItem('SiLaporUser');
-    clearSessionTimeout();
+    localStorage.setItem('pwa_install_dismissed', 'true');
   } catch (e) {
-    console.warn('Cannot clear session user', e);
+    console.error('Failed to save install dismissal', e);
   }
 }
 
-function loadSessionUser() {
-  try {
-    const raw = sessionStorage.getItem('SiLaporUser');
-    return raw ? JSON.parse(raw) : null;
-  } catch (e) {
+// Create and show install notification
+function showInstallNotification() {
+  if (installNotificationShown || isAppInstalled() || hasUserDismissedInstall()) {
+    return;
+  }
+
+  installNotificationShown = true;
+
+  // Create notification element
+  const notification = document.createElement('div');
+  notification.id = 'pwa-install-notification';
+  notification.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    color: white;
+    padding: 12px 16px;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    font-size: 14px;
+    transform: translateY(-100%);
+    transition: transform 0.3s ease;
+  `;
+
+  // Notification content
+  notification.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="display:flex;align-items:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm0 3v14h10V5H7Zm5 15a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4Z"/></svg></div>
+      <div>
+        <div style="font-weight: 600; margin-bottom: 2px;">Install SiMISA</div>
+        <div style="font-size: 12px; opacity: 0.9;">Install aplikasi untuk akses yang lebih cepat</div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <button id="pwa-install-btn" style="
+        background: rgba(255,255,255,0.2);
+        border: 1px solid rgba(255,255,255,0.3);
+        color: white;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+      ">Install</button>
+      <button id="pwa-dismiss-btn" style="
+        background: transparent;
+        border: none;
+        color: white;
+        padding: 6px;
+        border-radius: 4px;
+        font-size: 16px;
+        cursor: pointer;
+        opacity: 0.8;
+        transition: opacity 0.2s;
+      ">&times;</button>
+    </div>
+  `;
+
+  // Add to page
+  document.body.appendChild(notification);
+
+  // Animate in
+  requestAnimationFrame(() => {
+    notification.style.transform = 'translateY(0)';
+  });
+
+  // Handle install button click
+  const installBtn = notification.querySelector('#pwa-install-btn');
+  const dismissBtn = notification.querySelector('#pwa-dismiss-btn');
+
+  installBtn.addEventListener('click', async () => {
+    if (deferredPrompt) {
+      // Show the install prompt
+      deferredPrompt.prompt();
+      
+      // Wait for the user to respond to the prompt
+      const { outcome } = await deferredPrompt.userChoice;
+      
+      console.log(`User response to install prompt: ${outcome}`);
+      
+      // Reset the deferred prompt variable
+      deferredPrompt = null;
+      
+      // Remove notification
+      hideInstallNotification();
+      
+      if (outcome === 'accepted') {
+        showToast('App sedang diinstall...', 'success');
+      }
+    } else {
+      // Fallback: show manual install instructions
+      showManualInstallInstructions();
+    }
+  });
+
+  // Handle dismiss button click
+  dismissBtn.addEventListener('click', () => {
+    markInstallDismissed();
+    hideInstallNotification();
+  });
+
+  // Auto-hide after 10 seconds if no interaction
+  setTimeout(() => {
+    if (document.getElementById('pwa-install-notification')) {
+      hideInstallNotification();
+    }
+  }, 10000);
+}
+
+// Hide install notification
+function hideInstallNotification() {
+  const notification = document.getElementById('pwa-install-notification');
+  if (notification) {
+    notification.style.transform = 'translateY(-100%)';
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 300);
+  }
+}
+
+// Show manual install instructions for browsers that don't support the install prompt
+function showManualInstallInstructions() {
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isAndroid = /Android/.test(navigator.userAgent);
+  
+  let instructions = '';
+  
+  if (isIOS) {
+    instructions = `
+      <div style="text-align: left; line-height: 1.5;">
+        <p><strong>Untuk install di iOS:</strong></p>
+        <p>1. Tap tombol Share di Safari</p>
+        <p>2. Pilih "Add to Home Screen"</p>
+        <p>3. Tap "Add" untuk confirm</p>
+      </div>
+    `;
+  } else if (isAndroid) {
+    instructions = `
+      <div style="text-align: left; line-height: 1.5;">
+        <p><strong>Untuk install di Android:</strong></p>
+        <p>1. Tap menu (⋮) di browser</p>
+        <p>2. Pilih "Add to Home screen" atau "Install app"</p>
+        <p>3. Tap "Add" atau "Install"</p>
+      </div>
+    `;
+  } else {
+    instructions = `
+      <div style="text-align: left; line-height: 1.5;">
+        <p><strong>Untuk install di desktop:</strong></p>
+        <p>1. Cari icon install (⬇️) di address bar</p>
+        <p>2. Atau buka menu browser dan pilih "Install SiMISA"</p>
+        <p>3. Klik "Install" untuk confirm</p>
+      </div>
+    `;
+  }
+
+  // Create modal for instructions
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10001;
+  `;
+
+  modal.innerHTML = `
+    <div style="
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      max-width: 320px;
+      width: 90%;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+    ">
+      <h3 style="margin: 0 0 16px 0; color: #6c5ce7;">Install SiMISA</h3>
+      ${instructions}
+      <button id="close-instructions" style="
+        background: #6c5ce7;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+        width: 100%;
+        margin-top: 16px;
+      ">Mengerti</button>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  modal.querySelector('#close-instructions').addEventListener('click', () => {
+    modal.remove();
+  });
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      modal.remove();
+    }
+  });
+}
+
+// Listen for the beforeinstallprompt event
+window.addEventListener('beforeinstallprompt', (e) => {
+  console.log('PWA install prompt available');
+  
+  // Prevent the mini-infobar from appearing on mobile
+  e.preventDefault();
+  
+  // Save the event so it can be triggered later
+  deferredPrompt = e;
+  
+  // Show our custom install notification after a short delay
+  setTimeout(() => {
+    showInstallNotification();
+  }, 3000); // Show after 3 seconds of app usage
+});
+
+// Listen for app installation
+window.addEventListener('appinstalled', (e) => {
+  console.log('PWA was installed');
+  showToast('App berhasil diinstall!', 'success');
+  
+  // Hide any visible install notification
+  hideInstallNotification();
+  
+  // Reset the deferred prompt
+  deferredPrompt = null;
+});
+
+// Check if we should show install notification on load
+document.addEventListener('DOMContentLoaded', () => {
+  // Don't show immediately, wait for user to interact with the app first
+  setTimeout(() => {
+    // Only show if the beforeinstallprompt hasn't fired and conditions are met
+    if (!deferredPrompt && !isAppInstalled() && !hasUserDismissedInstall()) {
+      // For browsers that don't support beforeinstallprompt
+      // Show notification after some user interaction
+      let interactionCount = 0;
+      
+      const trackInteraction = () => {
+        interactionCount++;
+        if (interactionCount >= 3) { // After 3 interactions
+          showInstallNotification();
+          // Remove listeners after showing notification
+          document.removeEventListener('click', trackInteraction);
+          document.removeEventListener('touchstart', trackInteraction);
+        }
+      };
+      
+      document.addEventListener('click', trackInteraction);
+      document.addEventListener('touchstart', trackInteraction);
+    }
+  }, 5000); // Wait 5 seconds before starting to track interactions
+});
+
+// Add manual install button to header (optional)
+function addManualInstallButton() {
+  const headerActions = document.querySelector('.header-actions');
+  if (headerActions && !isAppInstalled() && !hasUserDismissedInstall()) {
+    const installBtn = document.createElement('button');
+    installBtn.className = 'btn primary';
+    installBtn.style.cssText = `
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 4px rgba(108, 92, 231, 0.2);
+    `;
+    installBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="margin-right:4px;vertical-align:-2px;"><path d="M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm0 3v14h10V5H7Zm5 15a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4Z"/></svg>Install';
+    installBtn.title = 'Install aplikasi ke perangkat Anda';
+    
+    installBtn.addEventListener('click', () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          if (choiceResult.outcome === 'accepted') {
+            showToast('App sedang diinstall...', 'success');
+            installBtn.remove(); // Remove button after successful install
+          }
+          deferredPrompt = null;
+        });
+      } else {
+        showManualInstallInstructions();
+      }
+    });
+    
+    headerActions.appendChild(installBtn);
+  }
+}
+
+// Call this after DOM is loaded
+setTimeout(addManualInstallButton, 1000);
+
+/*
+  - Penambahan Fitur Tanda Tangan Pada Laporan Bulanan 15/09
+  - Perbaikan Bug Data di PDF
+*/
+
+const DB_NAME = 'simisa_photos';
+const DB_STORE = 'photos';
+let db;
+function openDB(){
+  return new Promise((resolve,reject)=>{
+    const req = indexedDB.open(DB_NAME,1);
+    req.onupgradeneeded = e=>{ db = e.target.result; if(!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE); };
+    req.onsuccess = e=>{ db = e.target.result; resolve(db); };
+    req.onerror = e=> reject(e);
+  });
+}
+async function putPhoto(id, blob){ if(!db) await openDB(); return new Promise((resolve,reject)=>{ const tx = db.transaction(DB_STORE,'readwrite'); tx.objectStore(DB_STORE).put(blob, id); tx.oncomplete = ()=> resolve(id); tx.onerror = e=> reject(e); }); }
+async function getPhoto(id){ if(!db) await openDB(); return new Promise((resolve,reject)=>{ const tx = db.transaction(DB_STORE,'readonly'); const req = tx.objectStore(DB_STORE).get(id); req.onsuccess = ()=> resolve(req.result || null); req.onerror = e=> reject(e); }); }
+
+/* --- Photo caching with LRU and object URL management with device ram detection --- */
+const PHOTO_CACHE_LIMIT = (navigator.deviceMemory && navigator.deviceMemory > 4) ? 400 : 200;
+const photoCache = new Map(); // id -> Blob
+const urlCache = new Map();   // id -> objectURL
+
+function _ensureCacheLimit(){
+  while(photoCache.size > PHOTO_CACHE_LIMIT){
+    const oldestKey = photoCache.keys().next().value;
+    photoCache.delete(oldestKey);
+    const url = urlCache.get(oldestKey);
+    if(url){ try{ URL.revokeObjectURL(url); }catch(e){} urlCache.delete(oldestKey); }
+  }
+}
+
+async function getCachedPhoto(id){
+  if(!id) return null;
+  if(photoCache.has(id)){
+    const val = photoCache.get(id);
+    // move to end (LRU)
+    photoCache.delete(id);
+    photoCache.set(id, val);
+    return val;
+  }
+  try{
+    const blob = await getPhoto(id);
+    if(blob){
+      photoCache.set(id, blob);
+      _ensureCacheLimit();
+      return blob;
+    }
+    return null;
+  }catch(err){
+    console.error('getCachedPhoto failed', err);
     return null;
   }
 }
 
-function _getInitials(name) {
-  return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
+function getObjectURLFor(id, blob){
+  if(!id || !blob) return null;
+  if(urlCache.has(id)) return urlCache.get(id);
+  try{
+    const u = URL.createObjectURL(blob);
+    urlCache.set(id, u);
+    return u;
+  }catch(err){
+    console.error('createObjectURL failed', err);
+    return null;
+  }
 }
 
-function applySchoolState(school) {
-  if (!school) return;
-  currentUser = { type: 'school', school };
-  window.currentUser = currentUser;
-
-  document.getElementById('sidebarPublicNav').classList.add('hidden');
-  document.getElementById('sidebarSchoolNav').classList.remove('hidden');
-  document.getElementById('sidebarAdminNav').classList.add('hidden');
-
-  const initials = _getInitials(school.name);
-  document.getElementById('sidebarUserAvatar').textContent = initials;
-  document.getElementById('sidebarUserName').textContent = school.name;
-  document.getElementById('sidebarUserRole').textContent = 'NPSN: ' + school.id;
-  document.getElementById('sidebarUser').classList.remove('hidden');
-  document.getElementById('sidebarActions').classList.remove('hidden');
-  document.getElementById('sidebarBtnChangePass').style.display = 'none';
-  document.getElementById('sidebarBtnSchoolChangePass').style.display = '';
-
-  document.getElementById('topbarUserAvatar').textContent = initials;
-  document.getElementById('topbarUser').classList.remove('hidden');
-
-  document.getElementById('schoolDashName').textContent = school.name;
-  document.getElementById('schoolDashNPSN').textContent = 'NPSN: ' + school.id;
-  if (school.firstLogin) {
-    document.getElementById('firstLoginBanner').classList.remove('hidden');
-  } else {
-    document.getElementById('firstLoginBanner').classList.add('hidden');
+function clearPhotoCache(){
+  for(const u of urlCache.values()){
+    try{ URL.revokeObjectURL(u); }catch(e){}
   }
-  schoolTicketFilter = 'all';
-  renderSchoolTickets();
-  updateSchoolStats();
-  showPage('school-dash');
-  if (window.fbLoadTicketsPage) window.fbLoadTicketsPage({ context: 'school', schoolId: school.id, reset: true });
-  if (window.fbStartRealtimeForContext) window.fbStartRealtimeForContext({ context: 'school', schoolId: school.id });
+  photoCache.clear();
+  urlCache.clear();
 }
 
-function applyAdminState() {
-  currentUser = { type: 'admin' };
-  window.currentUser = currentUser;
+/* --- Utilities --- */
+const $ = sel => document.querySelector(sel);
+const el = id => document.getElementById(id);
+const STORAGE_KEY = 'simisa_v1';
 
-  document.getElementById('sidebarPublicNav').classList.add('hidden');
-  document.getElementById('sidebarSchoolNav').classList.add('hidden');
-  document.getElementById('sidebarAdminNav').classList.remove('hidden');
+let state = { items: [], history: [] };
 
-  document.getElementById('sidebarUserAvatar').textContent = 'AD';
-  document.getElementById('sidebarUserName').textContent = 'Administrator';
-  document.getElementById('sidebarUserRole').textContent = 'Akses Penuh';
-  document.getElementById('sidebarUser').classList.remove('hidden');
-  document.getElementById('sidebarActions').classList.remove('hidden');
-  document.getElementById('sidebarBtnChangePass').style.display = '';
-  document.getElementById('sidebarBtnSchoolChangePass').style.display = 'none';
+/* safe JSON load */
+function load(){ try{ const raw = localStorage.getItem(STORAGE_KEY); if(raw) state = JSON.parse(raw); else { state.items = [ { id:'itm-1', name:'MacBook Pro', category:'Electronics', desc:'13-inch', status:'available'}, { id:'itm-2', name:'Cordless Drill', category:'Tools', desc:'Battery powered', status:'borrowed', borrowedBy:'John', borrowDate:'2025-08-05', expectedReturn:'2025-08-10'} ]; state.history = []; save(); } }catch(e){ console.error(e); state = {items:[], history:[]}; } }
+function save(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){ console.error('save failed', e); } }
 
-  document.getElementById('topbarUserAvatar').textContent = 'AD';
-  document.getElementById('topbarUser').classList.remove('hidden');
-
-  showPage('admin-dash');
-  updateAdminStats();
-  renderAdminRecent();
-  if (window.fbLoadTicketsPage) window.fbLoadTicketsPage({ context: 'admin', reset: true });
-  if (window.fbStartRealtimeForContext) window.fbStartRealtimeForContext({ context: 'admin' });
-}
-
-function restoreLoginState() {
-  const session = loadSessionUser();
-  if (!session) {
-    showPage('reporter');
-    return;
-  }
-  const DB = loadDB();
-  if (session.type === 'school') {
-    const school = DB.schools.find(s => s.id === session.schoolId);
-    if (school) {
-      applySchoolState(school);
-      recordActivity('SESSION_RESTORE', `School: ${school.name} (${school.id})`);
-      initSessionTimeout();
-      return;
-    }
-  }
-  if (session.type === 'admin') {
-    if (DB.admin && DB.admin.username === session.username) {
-      applyAdminState();
-      recordActivity('SESSION_RESTORE', `Admin: ${DB.admin.username}`);
-      initSessionTimeout();
-      return;
-    }
-  }
-  clearSessionUser();
-  showPage('reporter');
-}
-
-// ====================== SECURITY: Session Timeout Functions ======================
-function initSessionTimeout() {
-  clearSessionTimeout();
-  // Auto-logout after inactivity
-  sessionTimeoutId = setTimeout(() => {
-    recordActivity('AUTO_LOGOUT', 'Session timeout setelah 30 menit inactivity');
-    logout();
-    showAlert('reporterAlert', 'warning', 'Sesi Anda telah berakhir karena inaktivitas. Silakan login kembali.');
-  }, SESSION_TIMEOUT_MS);
-  
-  // Reset timer on user activity
-  ['click', 'keydown', 'scroll', 'touchstart'].forEach(event => {
-    document.addEventListener(event, resetSessionTimer, true);
+function uid(prefix='id'){ return prefix + '-' + Math.random().toString(36).slice(2,9); }
+function formatDate(s){ if(!s) return ''; const d = new Date(s); if(isNaN(d)) return s; return d.toLocaleDateString('id-ID'); }
+function escapeHtml(s){ return (s+'').replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+function downloadText(filename, text){ const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type:'application/json'})); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); try{ URL.revokeObjectURL(a.href); }catch(e){} }
+function sanitizeFilename(s=''){ return (s || 'barang').toString().trim().replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, '_').slice(0, 80) || 'barang'; }
+function getItemQrPayload(item){
+  return JSON.stringify({
+    type: 'simisa-item',
+    id: item.id,
+    nama: item.name || '',
+    kategori: item.category || '',
+    detail: item.desc || ''
   });
 }
-
-function clearSessionTimeout() {
-  if (sessionTimeoutId) {
-    clearTimeout(sessionTimeoutId);
-    sessionTimeoutId = null;
-  }
-  ['click', 'keydown', 'scroll', 'touchstart'].forEach(event => {
-    document.removeEventListener(event, resetSessionTimer, true);
-  });
+function getItemQrImageUrl(item, size = 700){
+  const payload = encodeURIComponent(getItemQrPayload(item));
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${payload}&format=png&qzone=1`;
 }
-
-function resetSessionTimer() {
-  if (!currentUser || !sessionTimeoutId) return;
-  clearSessionTimeout();
-  initSessionTimeout();
+function downloadUrl(filename, url){
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
-
-function removeLegacySchoolRefreshButton() {
-  const byId = document.getElementById('schoolRefreshBtn');
-  if (byId) byId.remove();
-
-  document.querySelectorAll('button[onclick*="refreshSchoolTickets"]').forEach(btn => btn.remove());
-}
-
-// ====================== SECURITY: Login Attempt Limiter ======================
-function recordLoginAttempt(identifier, success = false) {
-  try {
-    let attempts = JSON.parse(localStorage.getItem(LOGIN_ATTEMPTS_KEY) || '{}');
-    if (!attempts[identifier]) {
-      attempts[identifier] = { count: 0, firstAttemptTime: Date.now(), lockedUntil: null };
-    }
-    
-    if (!success) {
-      attempts[identifier].count += 1;
-      attempts[identifier].firstAttemptTime = Date.now();
-      
-      if (attempts[identifier].count >= MAX_LOGIN_ATTEMPTS) {
-        attempts[identifier].lockedUntil = Date.now() + LOGIN_LOCKOUT_MS;
-        recordActivity('LOGIN_LOCKED', `Identifier: ${identifier}`);
-      }
-    }
-    
-    localStorage.setItem(LOGIN_ATTEMPTS_KEY, JSON.stringify(attempts));
-  } catch (e) {
-    console.warn('Cannot record login attempt', e);
-  }
-}
-
-function clearLoginAttempts(identifier) {
-  try {
-    let attempts = JSON.parse(localStorage.getItem(LOGIN_ATTEMPTS_KEY) || '{}');
-    if (attempts[identifier]) {
-      delete attempts[identifier];
-      localStorage.setItem(LOGIN_ATTEMPTS_KEY, JSON.stringify(attempts));
-    }
-  } catch (e) {
-    console.warn('Cannot clear login attempts', e);
-  }
-}
-
-function isLoginLocked(identifier) {
-  try {
-    const attempts = JSON.parse(localStorage.getItem(LOGIN_ATTEMPTS_KEY) || '{}');
-    const record = attempts[identifier];
-    if (!record) return false;
-    
-    if (record.lockedUntil && Date.now() < record.lockedUntil) {
-      return true;
-    }
-    
-    // Reset if lockout period has expired
-    if (record.lockedUntil && Date.now() >= record.lockedUntil) {
-      clearLoginAttempts(identifier);
-      return false;
-    }
-    
-    return false;
-  } catch (e) {
-    return false;
-  }
-}
-
-function getLoginLockoutTimeRemaining(identifier) {
-  try {
-    const attempts = JSON.parse(localStorage.getItem(LOGIN_ATTEMPTS_KEY) || '{}');
-    const record = attempts[identifier];
-    if (!record || !record.lockedUntil) return 0;
-    
-    const remaining = record.lockedUntil - Date.now();
-    return remaining > 0 ? remaining : 0;
-  } catch (e) {
-    return 0;
-  }
-}
-
-// ====================== SECURITY: Activity Logging ======================
-function recordActivity(action, details = '') {
-  try {
-    let logs = JSON.parse(localStorage.getItem(ACTIVITY_LOG_KEY) || '[]');
-    const logEntry = {
-      timestamp: new Date().toISOString(),
-      action: action,
-      details: details,
-      userType: currentUser ? currentUser.type : 'PUBLIC',
-      userId: currentUser ? (currentUser.type === 'school' ? currentUser.school.id : currentUser.username) : 'ANONYMOUS'
-    };
-    
-    logs.push(logEntry);
-    
-    // Keep only last 100 entries
-    if (logs.length > MAX_LOG_ENTRIES) {
-      logs = logs.slice(-MAX_LOG_ENTRIES);
-    }
-    
-    localStorage.setItem(ACTIVITY_LOG_KEY, JSON.stringify(logs));
-  } catch (e) {
-    console.warn('Cannot record activity', e);
-  }
-}
-
-function getActivityLog() {
-  try {
-    return JSON.parse(localStorage.getItem(ACTIVITY_LOG_KEY) || '[]');
-  } catch (e) {
-    return [];
-  }
-}
-
-// ====================== MOBILE NAVIGATION (Sidebar) ======================
-function toggleMobileNav() {
-  const sidebar = document.getElementById('sidebar');
-  const backdrop = document.getElementById('sidebarBackdrop');
-  const isOpen = sidebar.classList.toggle('open');
-  backdrop.classList.toggle('show', isOpen);
-}
-
-function closeMobileNav() {
-  const sidebar = document.getElementById('sidebar');
-  const backdrop = document.getElementById('sidebarBackdrop');
-  sidebar.classList.remove('open');
-  backdrop.classList.remove('show');
-}
-
-// ====================== NAVIGATION ======================
-const PROTECTED_PAGES = ['school-dash', 'admin-dash'];
-
-function updateSidebarActive(page) {
-  document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
-  const id = 'snav-' + page;
-  const el = document.getElementById(id);
-  if (el) el.classList.add('active');
-}
-
-function showPage(page) {
-  closeMobileNav();
-  const previousActivePage = document.querySelector('.page.active')?.id?.replace('page-', '') || '';
-
-  if (PROTECTED_PAGES.includes(page) && !currentUser) {
-    page = 'reporter';
-  }
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById('page-' + page).classList.add('active');
-  updateSidebarActive(page);
-
-  // Bersihkan input tracking saat user meninggalkan halaman lacak tiket
-  if (page === 'tracking') {
-    resetTracking();
-  }
-
-  if (page !== 'reporter') {
-    captchaVerified = false;
-  } else {
-    genCaptcha();
-  }
-}
-
-function logout() {
-  // Log activity
-  recordActivity('LOGOUT', currentUser ? (currentUser.type === 'school' ? currentUser.school.name : 'Admin') : 'Unknown');
-  
-  currentUser = null;
-  window.currentUser = currentUser;
-  clearSessionUser();
-  if (window.fbStopRealtime) window.fbStopRealtime();
-  if (window.fbStartRealtimeForContext) window.fbStartRealtimeForContext({ context: 'public' });
-
-  // Restore public sidebar nav
-  document.getElementById('sidebarPublicNav').classList.remove('hidden');
-  document.getElementById('sidebarSchoolNav').classList.add('hidden');
-  document.getElementById('sidebarAdminNav').classList.add('hidden');
-  document.getElementById('sidebarUser').classList.add('hidden');
-  document.getElementById('sidebarActions').classList.add('hidden');
-  document.getElementById('topbarUser').classList.add('hidden');
-
-  closeMobileNav();
-  showPage('reporter');
-}
-
-// ====================== CAPTCHA ======================
-function genCaptcha() {
-  captchaA = Math.floor(Math.random() * 10) + 1;
-  captchaB = Math.floor(Math.random() * 10) + 1;
-  document.getElementById('captchaQ').textContent = captchaA + ' + ' + captchaB;
-  document.getElementById('captchaAns').value = '';
-  document.getElementById('captchaAns').style.borderColor = 'var(--border)';
-  captchaVerified = false;
-  const statusEl = document.getElementById('captchaStatus');
-  if (statusEl) statusEl.textContent = '';
-}
-
-function checkCaptchaAuto() {
-  const ans = parseInt(document.getElementById('captchaAns').value);
-  const statusEl = document.getElementById('captchaStatus');
-  if (ans === captchaA + captchaB) {
-    captchaVerified = true;
-    statusEl.innerHTML = SVGIcons.check + ' Verifikasi berhasil!';
-    statusEl.style.color = 'var(--success)';
-    document.getElementById('captchaAns').style.borderColor = 'var(--success)';
-  } else if (document.getElementById('captchaAns').value.length > 0) {
-    captchaVerified = false;
-    statusEl.innerHTML = SVGIcons.x + ' Jawaban salah';
-    statusEl.style.color = 'var(--danger)';
-    document.getElementById('captchaAns').style.borderColor = 'var(--danger)';
-  } else {
-    captchaVerified = false;
-    statusEl.textContent = '';
-    document.getElementById('captchaAns').style.borderColor = 'var(--border)';
-  }
-}
-
-function verifyCaptcha() {
-  checkCaptchaAuto();
-}
-
-// ====================== SCHOOL SEARCH DROPDOWN ======================
-function filterSchools() {
-  const q = document.getElementById('schoolSearch').value.toLowerCase();
-  const dd = document.getElementById('schoolDropdown');
-  const DB = loadDB();
-  const matches = DB.schools.filter(s => s.name.toLowerCase().includes(q) || s.id.includes(q));
-  dd.innerHTML = '';
-  if (matches.length === 0) {
-    dd.innerHTML = '<div class="dropdown-item" style="color:var(--text-3)">Sekolah tidak ditemukan</div>';
-  } else {
-    matches.forEach(s => {
-      const d = document.createElement('div');
-      d.className = 'dropdown-item';
-      d.innerHTML = `<strong>${s.name}</strong> <span style="color:var(--text-3);font-size:11px">${s.level} · ${s.city}</span>`;
-      d.onclick = () => {
-        document.getElementById('schoolSearch').value = s.name;
-        document.getElementById('r_school_id').value = s.id;
-        document.getElementById('r_school_name').value = s.name;
-        dd.classList.remove('show');
-      };
-      dd.appendChild(d);
-    });
-  }
-  dd.classList.add('show');
-}
-
-function showDropdown() {
-  filterSchools();
-}
-
-document.addEventListener('click', function(e) {
-  if (!e.target.closest('.search-select')) document.getElementById('schoolDropdown').classList.remove('show');
-});
-
-// ====================== IMAGE COMPRESSION ======================
-function detectWebPSupport() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 1; canvas.height = 1;
-  const dataUrl = canvas.toDataURL('image/webp');
-  return dataUrl.startsWith('data:image/webp');
-}
-const USE_WEBP = detectWebPSupport();
-const IMG_FORMAT = USE_WEBP ? 'image/webp' : 'image/jpeg';
-
-async function compressImage(file, maxSizeKB = 100) {
-  const MAX_BYTES = maxSizeKB * 1024;
-  const MAX_DIM = 1280;
-  const MIN_QUALITY = 0.25;
-
+async function fetchAsDataUrl(url){
+  const response = await fetch(url);
+  if(!response.ok) throw new Error('Gagal memuat gambar QR');
+  const blob = await response.blob();
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = reject;
-    reader.onload = (ev) => {
-      const img = new Image();
-      img.onerror = reject;
-      img.onload = () => {
-        let { width, height } = img;
-        if (width > MAX_DIM || height > MAX_DIM) {
-          if (width >= height) {
-            height = Math.round((height / width) * MAX_DIM);
-            width = MAX_DIM;
-          } else {
-            width = Math.round((width / height) * MAX_DIM);
-            height = MAX_DIM;
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = () => reject(new Error('Gagal mengubah QR ke data URL'));
+    reader.readAsDataURL(blob);
+  });
+}
+async function downloadItemQrPdf(item){
+  const { jsPDF } = window.jspdf;
+  if(!jsPDF) throw new Error('Library PDF tidak tersedia');
+  const qrImageUrl = getItemQrImageUrl(item, 600);
+  const qrDataUrl = await fetchAsDataUrl(qrImageUrl);
+
+  // Label size: 90mm × 60mm (business card landscape style)
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [90, 60] });
+  const W = 90, H = 60;
+
+  // ── Background ──
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(0, 0, W, H, 4, 4, 'F');
+
+  // ── Top header bar (gradient simulation via solid) ──
+  doc.setFillColor(108, 92, 231); // #6c5ce7
+  doc.roundedRect(0, 0, W, 14, 4, 4, 'F');
+  // cover bottom corners of header
+  doc.rect(0, 8, W, 6, 'F');
+
+  // Brand text
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('SiMISA', 6, 8.5);
+  doc.setFontSize(5.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text('SISTEM INVENTARIS SEKOLAH', 6, 12.5);
+
+  // "ASET" badge on right
+  doc.setFillColor(255, 255, 255, 50); // semi-transparent
+  doc.setFillColor(162, 155, 254); // #a29bfe
+  doc.roundedRect(W - 18, 4, 14, 7, 2, 2, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(5.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('ASET', W - 11, 8.6, { align: 'center' });
+
+  // ── QR Code ──
+  // Content zone: Y=16 to Y=50 (footer starts at 51) → max height = 34mm
+  const qrSize = 33;           // fits comfortably: 16+33 = 49 < 51
+  const qrX = 4;
+  const qrY = 16 + (34 - qrSize) / 2; // vertically centre in content zone
+  // QR border box
+  doc.setDrawColor(237, 233, 254); // #ede9fe
+  doc.setLineWidth(0.5);
+  doc.roundedRect(qrX - 1, qrY - 1, qrSize + 2, qrSize + 2, 2, 2, 'S');
+  doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+
+  // ── Item Info (right of QR) ──
+  const infoX = qrX + qrSize + 5;
+  const infoW = W - infoX - 4;
+
+  // Item name — start aligned with QR top
+  const infoStartY = qrY + 4;
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(17, 24, 39); // #111827
+  const nameLines = doc.splitTextToSize(item.name || '-', infoW);
+  doc.text(nameLines.slice(0, 2), infoX, infoStartY);
+
+  let yOff = infoStartY + (nameLines.length > 1 ? 10 : 6);
+
+  // Category
+  if(item.category){
+    doc.setFontSize(5.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(156, 163, 175); // #9ca3af
+    doc.text('KATEGORI', infoX, yOff);
+    yOff += 3.5;
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(55, 65, 81); // #374151
+    doc.text(doc.splitTextToSize(item.category, infoW)[0], infoX, yOff);
+    yOff += 5;
+  }
+
+  // Detail
+  if(item.desc){
+    doc.setFontSize(5.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(156, 163, 175);
+    doc.text('DETAIL', infoX, yOff);
+    yOff += 3.5;
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(55, 65, 81);
+    const descLines = doc.splitTextToSize(item.desc, infoW);
+    doc.text(descLines.slice(0, 2), infoX, yOff);
+    yOff += (descLines.length > 1 ? 8 : 5);
+  }
+
+  // ID chip
+  doc.setFontSize(5.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(156, 163, 175);
+  doc.text('ID BARANG', infoX, yOff);
+  yOff += 3.5;
+  doc.setFillColor(243, 244, 246); // #f3f4f6
+  const idText = item.id;
+  doc.roundedRect(infoX - 1, yOff - 3, Math.min(infoW, idText.length * 2.2 + 4), 5, 1, 1, 'F');
+  doc.setFontSize(6);
+  doc.setFont('courier', 'bold');
+  doc.setTextColor(107, 114, 128); // #6b7280
+  doc.text(idText, infoX + 0.5, yOff + 0.8);
+
+  // ── Footer ──
+  doc.setFillColor(249, 250, 251); // #f9fafb
+  doc.rect(0, H - 9, W, 9, 'F');
+  // footer top border
+  doc.setDrawColor(240, 240, 240);
+  doc.setLineWidth(0.3);
+  doc.line(0, H - 9, W, H - 9);
+
+  doc.setFontSize(6);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(156, 163, 175);
+  doc.text('Scan QR untuk info peminjaman aset sekolah', 5, H - 3.5);
+
+  // Decorative dots right
+  doc.setFillColor(108, 92, 231);
+  doc.circle(W - 12, H - 5, 1.5, 'F');
+  doc.setFillColor(162, 155, 254);
+  doc.circle(W - 7.5, H - 5, 1.5, 'F');
+  doc.setFillColor(237, 233, 254);
+  doc.circle(W - 3, H - 5, 1.5, 'F');
+
+  const fileBase = sanitizeFilename(item.name || item.id);
+  doc.save(`QR_${fileBase}.pdf`);
+}
+function printItemQr(item){
+  const qrImageUrl = getItemQrImageUrl(item, 900);
+  const win = window.open('', '_blank');
+  if(!win) throw new Error('Popup print diblokir browser');
+  win.document.write(`
+    <!doctype html>
+    <html>
+      <head>
+        <title>Print QR - ${escapeHtml(item.name || item.id)}</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+
+          body {
+            font-family: 'Inter', Arial, sans-serif;
+            background: #f3f4f6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 24px;
           }
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width; canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
 
-        let quality = USE_WEBP ? 0.85 : 0.75;
-        let dataUrl = canvas.toDataURL(IMG_FORMAT, quality);
-
-        function base64SizeBytes(b64) {
-          const base = b64.split(',')[1] || b64;
-          return Math.ceil((base.length * 3) / 4);
-        }
-
-        while (base64SizeBytes(dataUrl) > MAX_BYTES && quality > MIN_QUALITY) {
-          quality = Math.max(quality - 0.05, MIN_QUALITY);
-          dataUrl = canvas.toDataURL(IMG_FORMAT, quality);
-        }
-
-        if (base64SizeBytes(dataUrl) > MAX_BYTES) {
-          let scale = 0.85;
-          while (base64SizeBytes(dataUrl) > MAX_BYTES && scale > 0.2) {
-            const w2 = Math.round(width * scale);
-            const h2 = Math.round(height * scale);
-            const c2 = document.createElement('canvas');
-            c2.width = w2; c2.height = h2;
-            c2.getContext('2d').drawImage(img, 0, 0, w2, h2);
-            dataUrl = c2.toDataURL(IMG_FORMAT, MIN_QUALITY);
-            scale -= 0.1;
+          .page-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
           }
-        }
-        resolve(dataUrl);
-      };
-      img.src = ev.target.result;
-    };
-    reader.readAsDataURL(file);
+
+          /* ── Label Card ── */
+          .label-card {
+            background: #fff;
+            border-radius: 20px;
+            width: 340px;
+            overflow: hidden;
+            box-shadow: 0 8px 30px rgba(0,0,0,.12);
+            page-break-inside: avoid;
+          }
+
+          /* Top accent bar with gradient */
+          .label-header {
+            background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%);
+            padding: 14px 20px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          }
+          .label-header .brand {
+            color: #fff;
+            font-size: 18px;
+            font-weight: 900;
+            letter-spacing: .5px;
+          }
+          .label-header .brand span {
+            font-weight: 400;
+            opacity: .85;
+            font-size: 11px;
+            display: block;
+            margin-top: 1px;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+          }
+          .label-header .badge {
+            background: rgba(255,255,255,.22);
+            color: #fff;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 3px 9px;
+            border-radius: 20px;
+            letter-spacing: .8px;
+            text-transform: uppercase;
+          }
+
+          /* Body */
+          .label-body {
+            padding: 18px 20px 20px;
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+          }
+
+          /* QR box */
+          .qr-box {
+            flex-shrink: 0;
+            background: #fff;
+            border: 2px solid #ede9fe;
+            border-radius: 12px;
+            padding: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .qr-box img {
+            width: 120px;
+            height: 120px;
+            display: block;
+          }
+
+          /* Info */
+          .info {
+            flex: 1;
+            min-width: 0;
+          }
+          .item-name {
+            font-size: 15px;
+            font-weight: 700;
+            color: #111827;
+            line-height: 1.3;
+            margin-bottom: 8px;
+            word-break: break-word;
+          }
+          .info-row {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 5px;
+          }
+          .info-label {
+            font-size: 9px;
+            font-weight: 600;
+            color: #9ca3af;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+          }
+          .info-value {
+            font-size: 12px;
+            font-weight: 500;
+            color: #374151;
+            word-break: break-word;
+          }
+
+          /* ID chip */
+          .id-chip {
+            display: inline-block;
+            background: #f3f4f6;
+            color: #6b7280;
+            font-size: 9.5px;
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 6px;
+            letter-spacing: .5px;
+            margin-top: 2px;
+          }
+
+          /* Footer stripe */
+          .label-footer {
+            background: #f9fafb;
+            border-top: 1px solid #f0f0f0;
+            padding: 8px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          }
+          .label-footer .scan-hint {
+            font-size: 9px;
+            color: #9ca3af;
+            font-weight: 500;
+          }
+          .label-footer .dots {
+            display: flex;
+            gap: 4px;
+          }
+          .label-footer .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #ede9fe;
+          }
+          .label-footer .dot:first-child { background: #6c5ce7; }
+          .label-footer .dot:nth-child(2) { background: #a29bfe; opacity:.7; }
+
+          /* ── 4-up grid for sticker sheet ── */
+          .sticker-sheet {
+            display: none;
+          }
+
+          /* Print rules */
+          @media print {
+            body { background: #fff; padding: 0; min-height: unset; }
+            .no-print { display: none !important; }
+
+            /* Single card - centered on page */
+            .page-wrapper { gap: 0; }
+            .label-card {
+              box-shadow: none;
+              border: 1px solid #e5e7eb;
+              border-radius: 16px;
+            }
+          }
+
+          /* Preview controls (screen only) */
+          .controls {
+            display: flex;
+            gap: 10px;
+          }
+          .btn-print {
+            background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+            color: #fff;
+            border: none;
+            padding: 12px 28px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            letter-spacing: .3px;
+            transition: opacity .15s;
+          }
+          .btn-print:hover { opacity: .88; }
+          .btn-close {
+            background: #f3f4f6;
+            color: #374151;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+          }
+          .preview-note {
+            font-size: 12px;
+            color: #9ca3af;
+            font-family: 'Inter', Arial, sans-serif;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="page-wrapper">
+          <!-- Label card -->
+          <div class="label-card">
+            <div class="label-header">
+              <div class="brand">
+                SiMISA
+                <span>Sistem Inventaris Sekolah</span>
+              </div>
+              <div class="badge">Aset</div>
+            </div>
+
+            <div class="label-body">
+              <div class="qr-box">
+                <img src="${qrImageUrl}" alt="QR ${escapeHtml(item.name || item.id)}" />
+              </div>
+              <div class="info">
+                <div class="item-name">${escapeHtml(item.name || '-')}</div>
+
+                ${item.category ? `
+                <div class="info-row">
+                  <span class="info-label">Kategori</span>
+                  <span class="info-value">${escapeHtml(item.category)}</span>
+                </div>` : ''}
+
+                ${item.desc ? `
+                <div class="info-row">
+                  <span class="info-label">Detail</span>
+                  <span class="info-value">${escapeHtml(item.desc)}</span>
+                </div>` : ''}
+
+                <div class="info-row" style="margin-top:6px;">
+                  <span class="info-label">ID Barang</span>
+                  <span class="id-chip">${escapeHtml(item.id)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="label-footer">
+              <span class="scan-hint">Scan QR untuk info peminjaman</span>
+              <div class="dots">
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Controls (hidden on print) -->
+          <div class="controls no-print">
+            <button class="btn-print" onclick="window.print()">Cetak Label</button>
+            <button class="btn-close" onclick="window.close()">Tutup</button>
+          </div>
+          <div class="preview-note no-print">Preview label · ukuran cetak ~9×6 cm</div>
+        </div>
+      </body>
+    </html>
+  `);
+  win.document.close();
+  win.focus();
+  setTimeout(() => { win.print(); }, 800);
+}
+function openQrModal(item){
+  const existing = document.getElementById('qrItemModal');
+  if(existing) existing.remove();
+  const qrImageUrl = getItemQrImageUrl(item, 900);
+  const modal = document.createElement('div');
+  modal.id = 'qrItemModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;z-index:10002;padding:16px;';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:14px;padding:16px;max-width:420px;width:100%;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <h3 style="margin:0;color:#111827;">QR Barang</h3>
+        <button id="closeQrModal" class="btn ghost" type="button">Tutup</button>
+      </div>
+      <div style="font-size:13px;color:#374151;line-height:1.45;margin-bottom:12px;">
+        <div><strong>Nama:</strong> ${escapeHtml(item.name || '-')}</div>
+        <div><strong>Kategori:</strong> ${escapeHtml(item.category || '-')}</div>
+        <div><strong>Detail:</strong> ${escapeHtml(item.desc || '-')}</div>
+      </div>
+      <div style="display:flex;justify-content:center;margin-bottom:12px;">
+        <img src="${qrImageUrl}" alt="QR ${escapeHtml(item.name || item.id)}" style="width:260px;height:260px;border:1px solid #e5e7eb;border-radius:10px;padding:8px;background:#fff;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <button id="downloadQrPngBtn" class="btn primary" type="button">PNG</button>
+        <button id="downloadQrPdfBtn" class="btn export-pdf" type="button">PDF</button>
+        <button id="printQrBtn" class="btn ghost" style="grid-column:1/3;" type="button">Print</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  const close = () => modal.remove();
+  modal.addEventListener('click', e => { if(e.target === modal) close(); });
+  modal.querySelector('#closeQrModal').addEventListener('click', close);
+  modal.querySelector('#downloadQrPngBtn').addEventListener('click', () => {
+    const fileBase = sanitizeFilename(item.name || item.id);
+    downloadUrl(`QR_${fileBase}.png`, qrImageUrl);
+    showToast('QR PNG diunduh', 'success');
+  });
+  modal.querySelector('#downloadQrPdfBtn').addEventListener('click', async () => {
+    try{
+      await downloadItemQrPdf(item);
+      showToast('QR PDF diunduh', 'success');
+    }catch(err){
+      console.error(err);
+      showToast(err.message || 'Gagal membuat PDF QR', 'danger');
+    }
+  });
+  modal.querySelector('#printQrBtn').addEventListener('click', () => {
+    try{
+      printItemQr(item);
+      showToast('Membuka dialog print QR', 'info');
+    }catch(err){
+      console.error(err);
+      showToast(err.message || 'Gagal print QR', 'danger');
+    }
   });
 }
 
-async function compressImages(files, maxSizeKB = 100) {
-  const results = await Promise.all(files.map(async (f) => {
-    const compressed = await compressImage(f, maxSizeKB);
-    return compressed;
-  }));
+let lastView = null;
+
+function showView(id) {
+  // switch view
+  document.querySelectorAll('.view').forEach(v => v.hidden = true);
+  const target = document.getElementById(id);
+  if (target) {
+    target.hidden = false;
+    target.classList.add('fade-in');
+    setTimeout(() => target.classList.remove('fade-in'), 400);
+  }
+
+  // update tabs
+  document.querySelectorAll('.tab').forEach(t =>
+    t.classList.toggle('active', t.dataset.tab === id)
+  );
+
+  if (id === 'manage') {
+    if (el('manageSearch')) el('manageSearch').value = '';
+    manageFilter = 'all';
+    renderManage();
+  }
+
+  if (id === 'history') {
+    renderHistoryList();
+  }
+
+  lastView = id;
+}
+
+/* ── Modal helpers ── */
+function _resetBorrowModal() {
+  const today = new Date().toISOString().split('T')[0];
+  if (el('borrowDate')) { el('borrowDate').value = today; el('borrowDate').readOnly = true; }
+  if (el('expectedReturn')) el('expectedReturn').value = today;
+  if (el('borrower')) el('borrower').value = '';
+  resetPhotoFrame('borrowPhotoContainer', 'borrowPhoto', 'borrowPreview');
+  if (el('borrowForm')) el('borrowForm').reset();
+  try { if (window.__borrowSignPad) window.__borrowSignPad.clear(); } catch(e) {}
+  // restore today after reset
+  if (el('borrowDate')) el('borrowDate').value = today;
+  if (el('expectedReturn')) el('expectedReturn').value = today;
+}
+
+function _resetReturnModal() {
+  const today = new Date().toISOString().split('T')[0];
+  if (el('returnDate')) { el('returnDate').value = today; el('returnDate').readOnly = true; }
+  resetPhotoFrame('returnPhotoContainer', 'returnPhoto', 'returnPreview');
+  if (el('returnForm')) el('returnForm').reset();
+  try { if (window.__returnSignPad) window.__returnSignPad.clear(); } catch(e) {}
+  if (el('returnDate')) el('returnDate').value = today;
+}
+
+function _openModal(modalId, setupFn) {
+  const modal = el(modalId);
+  if (!modal) return;
+  if (setupFn) setupFn();
+  modal.classList.add('is-open');
+  document.body.style.overflow = document.querySelector('.form-modal.is-open') ? 'hidden' : '';
+}
+
+function _closeModal(modalId) {
+  const modal = el(modalId);
+  if (!modal) return;
+  modal.classList.remove('is-open');
+  document.body.style.overflow = document.querySelector('.form-modal.is-open') ? 'hidden' : '';
+}
+
+function openBorrowModal(preSelectId) {
+  _openModal('borrowModal', () => {
+    populateSelects();
+    _resetBorrowModal();
+    if (preSelectId && el('borrowSelect')) el('borrowSelect').value = preSelectId;
+    // Show item info banner
+    const info = el('borrowItemInfo');
+    if (info && preSelectId) {
+      const item = state.items.find(x => x.id === preSelectId);
+      if (item) {
+        info.innerHTML = `<div class="modal-item-info-text"><div class="modal-item-info-name">${escapeHtml(item.name)}</div>${item.category ? `<div class="modal-item-info-cat">${escapeHtml(item.category)}</div>` : ''}</div>`;
+        info.classList.add('visible');
+      }
+    }
+    // init signature pad lazily
+    if (!window.__borrowSignPad && el('borrowSign')) {
+      window.__borrowSignPad = makeSignaturePad('borrowSign', 'clearBorrowSign');
+    }
+  });
+}
+
+function closeBorrowModal() { _closeModal('borrowModal'); const info=el('borrowItemInfo'); if(info){info.innerHTML='';info.classList.remove('visible');} }
+function guardCloseBorrow() { showConfirm('Batalkan pengisian data? Data yang sudah diisi akan hilang.', closeBorrowModal); }
+
+function openReturnModal(preSelectId) {
+  _openModal('returnModal', () => {
+    populateSelects();
+    _resetReturnModal();
+    if (preSelectId && el('returnSelect')) el('returnSelect').value = preSelectId;
+    // Show item info banner
+    const info = el('returnItemInfo');
+    if (info && preSelectId) {
+      const item = state.items.find(x => x.id === preSelectId);
+      if (item) {
+        info.innerHTML = `<div class="modal-item-info-text"><div class="modal-item-info-name">${escapeHtml(item.name)}</div>${item.borrowedBy ? `<div class="modal-item-info-cat">Dipinjam oleh: ${escapeHtml(item.borrowedBy)}</div>` : ''}</div>`;
+        info.classList.add('visible');
+      }
+    }
+    if (!window.__returnSignPad && el('returnSign')) {
+      window.__returnSignPad = makeSignaturePad('returnSign', 'clearReturnSign');
+    }
+  });
+}
+
+function closeReturnModal() { _closeModal('returnModal'); const info=el('returnItemInfo'); if(info){info.innerHTML='';info.classList.remove('visible');} }
+function guardCloseReturn() { showConfirm('Batalkan pengisian data? Data yang sudah diisi akan hilang.', closeReturnModal); }
+
+
+/* --- UI rendering with chunking and cancellation tokens --- */
+const renderTokens = {};
+
+function cancelRender(key){
+  renderTokens[key] = (renderTokens[key] || 0) + 1;
+}
+
+function getRenderToken(key){ return (renderTokens[key] || 0) + 1; }
+
+/* chunked render helper */
+async function renderInBatches(key, items, batchSize, renderFn, container){
+  const token = getRenderToken(key);
+  renderTokens[key] = token;
+  container.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  for(let i=0;i<items.length;i++){
+    if(renderTokens[key] !== token) return; // cancelled
+    const node = renderFn(items[i], i);
+    frag.appendChild(node);
+    if((i+1) % batchSize === 0){
+      container.appendChild(frag);
+      // small pause to keep UI responsive
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
+  if(renderTokens[key] === token) container.appendChild(frag);
+}
+
+/* Render parts */
+function renderStats(){
+  const total = state.items.length;
+  const avail = state.items.filter(i=>i.status==='available').length;
+  const borrowed = state.items.filter(i=>i.status==='borrowed').length;
+  el('totalN').textContent = total;
+  el('availN').textContent = avail;
+  el('borrowedN').textContent = borrowed;
+}
+
+/* helper: fetch blobs in batches (keeps UI responsive & avoids too many concurrent IDB reads) */
+async function fetchBlobsInBatches(ids, batchSize = 8){
+  const results = new Array(ids.length).fill(null);
+  for(let i=0;i<ids.length;i+=batchSize){
+    const slice = ids.slice(i, i+batchSize);
+    const promises = slice.map(id => id ? getCachedPhoto(id) : Promise.resolve(null));
+    try{
+      const res = await Promise.all(promises);
+      for(let j=0;j<res.length;j++) results[i+j] = res[j];
+    }catch(err){
+      console.error('batch photo fetch error', err);
+      for(let j=0;j<slice.length;j++) results[i+j] = null;
+    }
+    // yield
+    await new Promise(r => setTimeout(r, 0));
+  }
   return results;
 }
 
-// ====================== PHOTO UPLOAD ======================
-function handlePhotos(inp) {
-  const files = Array.from(inp.files).slice(0, 3);
-  if (files.length === 0) return;
-  ['photoInput', 'photoInputCamera', 'photoInputGallery'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el && el !== inp) el.value = '';
+async function renderDashboardList(){
+  const itemsWrap = el('items');
+  const q = el('q').value.trim().toLowerCase();
+  const list = state.items.filter(it => {
+    if (dashboardFilter !== 'all' && it.status !== dashboardFilter) return false;
+    if(!q) return true;
+    return (it.name||'').toLowerCase().includes(q) || (it.category||'').toLowerCase().includes(q) || (it.desc||'').toLowerCase().includes(q) || (it.borrowedBy||'').toLowerCase().includes(q);
   });
-  const prev = document.getElementById('photoPreview');
-  prev.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:12px;color:var(--text-3);font-size:13px">Mengompresi foto...</div>';
 
-  compressImages(files, 100).then(compressedDataUrls => {
-    photoFiles = compressedDataUrls;
-    prev.innerHTML = '';
-    compressedDataUrls.forEach(dataUrl => {
-      const img = document.createElement('img');
-      img.className = 'photo-thumb';
-      img.src = dataUrl;
-      prev.appendChild(img);
-    });
-  }).catch(() => {
-    prev.innerHTML = '<div style="grid-column:1/-1;color:var(--danger);font-size:13px;display:flex;align-items:center;gap:6px">' + SVGIcons.x + ' Gagal memproses foto. Coba lagi.</div>';
-  });
-}
-
-// ====================== FIELD VALIDATION HELPERS ======================
-
-const NAME_MAX = 60;
-const WA_MIN = 9;
-const WA_MAX = 15;
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-
-function showFieldHint(hintId, msg, isError) {
-  const el = document.getElementById(hintId);
-  if (!el) return;
-  if (!msg) { el.style.display = 'none'; el.textContent = ''; return; }
-  el.textContent = msg;
-  el.style.display = 'block';
-  el.style.color = isError ? 'var(--danger)' : 'var(--text-3)';
-}
-
-// Field Nama: hanya huruf, spasi, tanda titik, dan tanda hubung
-function filterNameInput(input) {
-  // Hapus karakter yang tidak diizinkan (angka & simbol selain . dan -)
-  const cleaned = input.value.replace(/[^a-zA-ZÀ-öø-ÿ\s.\-']/g, '');
-  if (input.value !== cleaned) input.value = cleaned;
-
-  const len = cleaned.trim().length;
-  if (len === 0) {
-    showFieldHint('r_name_hint', '', false);
-  } else if (len < 3) {
-    showFieldHint('r_name_hint', 'Nama terlalu pendek (minimal 3 karakter).', true);
-  } else {
-    showFieldHint('r_name_hint', `${cleaned.length}/${NAME_MAX} karakter`, false);
-  }
-}
-
-// Field WA: hanya angka, wajib diawali 0 atau +62
-function filterWAInput(input) {
-  // Izinkan + hanya di posisi pertama, sisanya hanya angka
-  let val = input.value;
-  // Hapus semua bukan angka dan + di awal
-  val = val.replace(/[^\d+]/g, '');
-  // Pastikan + hanya muncul di index 0
-  if (val.indexOf('+') > 0) val = val.replace(/\+/g, '');
-  if (val.split('+').length > 2) val = val.replace(/\+/g, '');
-  input.value = val;
-
-  const digits = val.replace(/\D/g, '');
-  const len = digits.length;
-
-  if (val.length === 0) {
-    showFieldHint('r_wa_hint', '', false);
-  } else if (!val.startsWith('0') && !val.startsWith('+62') && !val.startsWith('62')) {
-    showFieldHint('r_wa_hint', 'Nomor harus diawali 0 atau +62.', true);
-  } else if (len < WA_MIN) {
-    showFieldHint('r_wa_hint', `Terlalu pendek — minimal ${WA_MIN} digit (sekarang ${len}).`, true);
-  } else {
-    showFieldHint('r_wa_hint', `${len} digit — valid`, false);
-  }
-}
-
-// Field Email: opsional, tetapi wajib valid jika diisi
-function validateOptionalEmail(input) {
-  const value = input.value.trim();
-  input.value = value;
-
-  if (!value) {
-    showFieldHint('r_email_hint', '', false);
-    return true;
+  if(list.length===0){
+    itemsWrap.innerHTML = '<div class="card"><div class="meta">Tidak ada barang yang ditemukan.</div></div>';
+    return;
   }
 
-  if (!EMAIL_PATTERN.test(value)) {
-    showFieldHint('r_email_hint', 'Format email belum valid. Contoh: nama@domain.com', true);
-    return false;
-  }
+  // prepare photo fetches in batches
+  const photoIds = list.map(it => it.photo || null);
+  const blobs = await fetchBlobsInBatches(photoIds, 10);
 
-  showFieldHint('r_email_hint', 'Format email valid.', false);
-  return true;
-}
+  const renderFn = (it, idx) => {
+    const blob = blobs[idx];
+    const card = document.createElement('div'); card.className = 'card ' + (it.status === 'available' ? 'available' : 'borrowed'); card.dataset.id = it.id;
+    const top = document.createElement('div'); top.className='top';
+    top.appendChild(document.createElement('div')).textContent = it.category || '';
+    const badge = document.createElement('div'); badge.className = 'badge ' + (it.status==='available'?'available':'borrowed');
+    badge.textContent = it.status==='available' ? 'Tersedia' : 'Dipinjam';
+    top.appendChild(badge);
+    card.appendChild(top);
+    const h = document.createElement('h3'); h.textContent = it.name; card.appendChild(h);
+    const p = document.createElement('div'); p.className='meta'; p.textContent = it.desc || ''; card.appendChild(p);
 
-// ====================== TOPIC CHANGE HANDLER ======================
-function onTopicChange(select) {
-  const isBully = select.value === 'Perilaku Tidak Pantas / Bullying';
-  const group = document.getElementById('incidentDateGroup');
-  const dateInput = document.getElementById('r_incident_date');
-  if (group) {
-    group.style.display = isBully ? '' : 'none';
-  }
-  if (dateInput) {
-    // Set max date to today so future dates can't be picked
-    dateInput.max = new Date().toISOString().split('T')[0];
-    if (!isBully) dateInput.value = '';
-    showFieldHint('r_incident_date_hint', '', false);
-  }
-}
-
-// ====================== SUBMIT REPORT ======================
-function submitReport() {
-  const name = document.getElementById('r_name').value.trim();
-  const email = document.getElementById('r_email').value.trim();
-  const wa = document.getElementById('r_wa').value.trim();
-  const schoolId = document.getElementById('r_school_id').value;
-  const schoolName = document.getElementById('r_school_name').value;
-  const topic = document.getElementById('r_topic').value;
-  const desc = document.getElementById('r_desc').value.trim();
-
-  const isBully = topic === 'Perilaku Tidak Pantas / Bullying';
-  const incidentDate = isBully ? (document.getElementById('r_incident_date').value || '') : '';
-
-  if (!name) return showAlert('reporterAlert', 'danger', 'Nama pelapor wajib diisi.');
-  if (name.length < 3) return showAlert('reporterAlert', 'danger', 'Nama pelapor minimal 3 karakter.');
-  if (name.length > NAME_MAX) return showAlert('reporterAlert', 'danger', `Nama pelapor maksimal ${NAME_MAX} karakter.`);
-  if (/\d/.test(name)) return showAlert('reporterAlert', 'danger', 'Nama pelapor tidak boleh mengandung angka.');
-  if (!wa) return showAlert('reporterAlert', 'danger', 'Nomor WhatsApp wajib diisi.');
-  if (!/^(\+62|62|0)\d+$/.test(wa)) return showAlert('reporterAlert', 'danger', 'Nomor WhatsApp hanya boleh berisi angka dan harus diawali 0 atau +62.');
-  const waDigits = wa.replace(/\D/g, '');
-  if (waDigits.length < WA_MIN) return showAlert('reporterAlert', 'danger', `Nomor WhatsApp minimal ${WA_MIN} digit (sekarang ${waDigits.length}).`);
-  if (waDigits.length > WA_MAX) return showAlert('reporterAlert', 'danger', `Nomor WhatsApp maksimal ${WA_MAX} digit.`);
-  if (email && !validateOptionalEmail(document.getElementById('r_email'))) {
-    return showAlert('reporterAlert', 'danger', 'Email opsional, namun jika diisi harus menggunakan format yang benar.');
-  }
-  if (!schoolId) return showAlert('reporterAlert', 'danger', 'Pilih sekolah dari dropdown.');
-  if (!topic) return showAlert('reporterAlert', 'danger', 'Pilih topik permasalahan.');
-  if (isBully && !incidentDate) return showAlert('reporterAlert', 'danger', 'Tanggal kejadian wajib diisi untuk laporan bullying.');
-  if (desc.length < 20) return showAlert('reporterAlert', 'danger', 'Deskripsi permasalahan minimal 20 karakter.');
-  if (!captchaVerified) return showAlert('reporterAlert', 'danger', 'Harap jawab pertanyaan verifikasi matematika dengan benar.');
-
-  const submitBtn = document.querySelector('#page-reporter .btn-primary');
-  submitBtn.disabled = true;
-  submitBtn.textContent = 'Mengirim...';
-
-  const id = 'TKT-' + Date.now().toString(36).toUpperCase().slice(-6);
-
-  async function collectPhotos() {
-    return photoFiles;
-  }
-
-  collectPhotos().then(async photos => {
-    const ticket = {
-      id, reporter: name, email,
-      wa, schoolId, schoolName, topic, desc, photos, status: 'Baru',
-      date: new Date().toISOString(), incidentDate: incidentDate || null,
-      notes: '', followUpPhotos: [], processDate: null, completeDate: null
-    };
-    const DB = loadDB();
-    DB.tickets.push(ticket);
-    if (window.fbSaveTicket) await window.fbSaveTicket(ticket);
-
-    // Reset form
-    document.getElementById('r_name').value = '';
-    document.getElementById('r_email').value = '';
-    showFieldHint('r_email_hint', '', false);
-    document.getElementById('r_wa').value = '';
-    document.getElementById('schoolSearch').value = '';
-    document.getElementById('r_school_id').value = '';
-    document.getElementById('r_school_name').value = '';
-    document.getElementById('r_topic').value = '';
-    document.getElementById('r_desc').value = '';
-    document.getElementById('r_incident_date').value = '';
-    document.getElementById('incidentDateGroup').style.display = 'none';
-    document.getElementById('photoPreview').innerHTML = '';
-    photoFiles = [];
-    genCaptcha();
-
-    submitBtn.disabled = false;
-    submitBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg> Kirim Laporan';
-    showTicketSuccessModal(id);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }).catch(() => {
-    submitBtn.disabled = false;
-    submitBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg> Kirim Laporan';
-    showAlert('reporterAlert', 'danger', 'Terjadi kesalahan saat mengirim. Coba lagi.');
-  });
-}
-
-// ====================== SCHOOL LOGIN ======================
-async function schoolLogin() {
-  const npsn = document.getElementById('sl_npsn').value.trim();
-  const pass = document.getElementById('sl_pass').value;
-  
-  // Check login attempts limiter
-  if (isLoginLocked(npsn)) {
-    const lockoutTime = getLoginLockoutTimeRemaining(npsn);
-    const minutes = Math.ceil(lockoutTime / 1000 / 60);
-    return showAlert('schoolLoginAlert', 'danger', `Terlalu banyak percobaan login. Coba lagi dalam ${minutes} menit.`);
-  }
-  
-  const DB = loadDB();
-  const school = DB.schools.find(s => s.id === npsn);
-  if (!school || !(await verifyPassword(pass, school))) {
-    recordLoginAttempt(npsn, false);
-    return showAlert('schoolLoginAlert', 'danger', 'NPSN atau password salah.');
-  }
-  
-  // Clear login attempts on successful login
-  clearLoginAttempts(npsn);
-  recordActivity('LOGIN', `School: ${school.name} (${npsn})`);
-  
-  await migrateSchoolPasswordHash(school);
-  saveSessionUser({ type: 'school', schoolId: school.id });
-  applySchoolState(school);
-}
-
-
-function renderLoadMoreButton(containerId, context, schoolId = null) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-  const meta = window.DBMeta?.tickets;
-  if (!meta) return;
-
-  const oldBtn = document.getElementById(containerId + '-load-more');
-  if (oldBtn) oldBtn.remove();
-
-  const isContextMatch = meta.context === context && (context !== 'school' || meta.schoolId === schoolId);
-  if (!isContextMatch || !meta.hasMore) return;
-
-  const btn = document.createElement('button');
-  btn.id = containerId + '-load-more';
-  btn.className = 'btn btn-outline';
-  btn.style.marginTop = '12px';
-  btn.style.width = '100%';
-  btn.textContent = meta.isLoading ? 'Memuat...' : 'Muat lebih banyak';
-  btn.disabled = meta.isLoading;
-  btn.onclick = async () => {
-    btn.disabled = true;
-    btn.textContent = 'Memuat...';
-    if (window.fbLoadTicketsPage) {
-      await window.fbLoadTicketsPage({ context, schoolId, reset: false });
+    if(it.status==='borrowed'){
+      const by = document.createElement('div'); by.className='meta'; const timeTxt = it.borrowTime ? ` • ${it.borrowTime}` : '';
+      by.textContent = `Dipinjam oleh: ${it.borrowedBy} • ${formatDate(it.borrowDate)}${timeTxt}${it.expectedReturn? ' • perkiraan: ' + formatDate(it.expectedReturn):''}`;
+      card.appendChild(by);
     }
-    renderLoadMoreButton(containerId, context, schoolId);
+
+    if(blob){
+      const preview = document.createElement('div'); preview.className='preview';
+      const img = document.createElement('img'); img.loading='lazy';
+      const url = getObjectURLFor(it.photo, blob);
+      img.src = url || '';
+      img.alt = it.name + ' photo'; img.style.maxHeight='220px'; img.style.objectFit='cover';
+      img.addEventListener('click', ()=> openImageModal(url));
+      preview.appendChild(img); card.appendChild(preview);
+    }
+
+    const actions = document.createElement('div'); actions.className='actions';
+
+    if(it.status==='available'){
+      const borrowBtn = document.createElement('button'); borrowBtn.className='btn primary'; borrowBtn.textContent='Pinjam';
+      borrowBtn.dataset.action = 'borrow'; borrowBtn.dataset.id = it.id;
+      actions.appendChild(borrowBtn);
+    } else {
+      const returnBtn = document.createElement('button'); returnBtn.className='btn borrowed-return'; returnBtn.textContent='Tandai dikembalikan';
+      returnBtn.dataset.action = 'return'; returnBtn.dataset.id = it.id;
+      actions.appendChild(returnBtn);
+    }
+    card.appendChild(actions);
+    return card;
   };
-  container.insertAdjacentElement('afterend', btn);
+
+  await renderInBatches('dashboard', list, 20, renderFn, itemsWrap);
 }
 
-function updateSchoolStats() {
-  if (!currentUser || currentUser.type !== 'school') return;
-  const DB = loadDB();
-  const tickets = DB.tickets.filter(t => isTicketForSchool(t, currentUser.school.id));
-  document.getElementById('sTotal').textContent = tickets.length;
-  document.getElementById('sNew').textContent = tickets.filter(t => t.status === 'Baru').length;
-  document.getElementById('sProc').textContent = tickets.filter(t => t.status === 'Dalam Proses').length;
-  document.getElementById('sDone').textContent = tickets.filter(t => t.status === 'Selesai').length;
-}
-
-function renderSchoolTickets() {
-  if (!currentUser || currentUser.type !== 'school') return;
-  const DB = loadDB();
-  const q = (document.getElementById('schoolTicketSearch').value || '').toLowerCase();
-  let tickets = DB.tickets.filter(t => isTicketForSchool(t, currentUser.school.id));
-  if (schoolTicketFilter !== 'all') tickets = tickets.filter(t => t.status === schoolTicketFilter);
-  if (q) tickets = tickets.filter(t => t.desc.toLowerCase().includes(q) || t.topic.toLowerCase().includes(q) || t.reporter.toLowerCase().includes(q));
-  tickets.sort((a, b) => new Date(b.date) - new Date(a.date));
-  const el = document.getElementById('schoolTicketList');
-  if (tickets.length === 0) {
-    el.innerHTML = '<div style="text-align:center;padding:32px;color:var(--text-3)">Tidak ada laporan ditemukan</div>';
-    renderLoadMoreButton('schoolTicketList', 'school', currentUser.school.id);
-    return;
+async function renderHistoryList(){
+  const historyWrap = el('historyList'); historyWrap.innerHTML='';
+  const selectedMonth = el('historyMonth')?.value || '';
+  let historyData = state.history.slice().reverse();
+  if (selectedMonth) {
+    historyData = historyData.filter(h => {
+      const date = new Date(h.date);
+      const monthStr = date.toISOString().slice(0, 7);
+      return monthStr === selectedMonth;
+    });
   }
-  el.innerHTML = tickets.map(t => ticketCard(t, true)).join('');
-  renderLoadMoreButton('schoolTicketList', 'school', currentUser.school.id);
-}
+  if(historyData.length===0){ historyWrap.innerHTML = '<div class="card"><div class="meta">Tidak ada riwayat untuk bulan ini.</div></div>'; return; }
 
-function filterSchoolTickets(status, btn) {
-  schoolTicketFilter = status;
-  document.querySelectorAll('#page-school-dash .filter-chip').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  renderSchoolTickets();
-}
-
-async function refreshSchoolTickets() {
-  if (!currentUser || currentUser.type !== 'school') return;
-  const refreshBtn = document.getElementById('schoolRefreshBtn');
-  if (refreshBtn) {
-    refreshBtn.disabled = true;
-    refreshBtn.textContent = 'Menyegarkan...';
-  }
-  try {
-    if (window.fbRefreshSchoolTickets) {
-      await window.fbRefreshSchoolTickets(currentUser.school.id);
-    } else if (window.fbLoadTicketsPage) {
-      await window.fbLoadTicketsPage({ context: 'school', schoolId: currentUser.school.id, reset: true });
-    }
-    renderSchoolTickets();
-    updateSchoolStats();
-    showAlert('schoolDashAlert', 'success', 'Data laporan sekolah berhasil disegarkan.');
-  } catch (e) {
-    console.error('refreshSchoolTickets error:', e);
-    showAlert('schoolDashAlert', 'danger', 'Gagal menyegarkan data laporan sekolah. Silakan coba lagi.');
-  } finally {
-    if (refreshBtn) {
-      refreshBtn.disabled = false;
-      refreshBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.13-3.36L23 10M1 14l5.36 4.36A9 9 0 0020.49 15"/></svg> Refresh Data';
-    }
-  }
-}
-
-// ====================== ADMIN LOGIN ======================
-async function adminLogin() {
-  const user = document.getElementById('al_user').value.trim();
-  const pass = document.getElementById('al_pass').value;
-  const lockoutKey = 'admin_' + user;
-  
-  // Check login attempts limiter
-  if (isLoginLocked(lockoutKey)) {
-    const lockoutTime = getLoginLockoutTimeRemaining(lockoutKey);
-    const minutes = Math.ceil(lockoutTime / 1000 / 60);
-    return showAlert('adminLoginAlert', 'danger', `Terlalu banyak percobaan login. Coba lagi dalam ${minutes} menit.`);
-  }
-  
-  const DB = loadDB();
-  if (user !== DB.admin.username || !(await verifyPassword(pass, DB.admin))) {
-    recordLoginAttempt(lockoutKey, false);
-    return showAlert('adminLoginAlert', 'danger', 'Username atau password admin salah.');
-  }
-  
-  // Clear login attempts on successful login
-  clearLoginAttempts(lockoutKey);
-  recordActivity('LOGIN', `Admin: ${user}`);
-  
-  await migrateAdminPasswordHash(DB.admin);
-  saveSessionUser({ type: 'admin', username: DB.admin.username });
-  applyAdminState();
-}
-
-function adminTab(tab, btn) {
-  ['overview', 'schools', 'reports', 'users'].forEach(t => {
-    document.getElementById('admin-' + t).classList.add('hidden');
+  // collect both photos and signatures
+  const photoIds = [];
+  historyData.forEach(h => {
+    if(h.photo) photoIds.push(h.photo);
+    if(h.signPhoto) photoIds.push(h.signPhoto);
   });
-  document.querySelectorAll('#page-admin-dash .tab').forEach(b => b.classList.remove('active'));
-  document.getElementById('admin-' + tab).classList.remove('hidden');
-  btn.classList.add('active');
-  if (tab === 'schools') renderSchoolTable();
-  if (tab === 'reports') renderAdminTickets();
-  if (tab === 'users') renderUserTable();
-}
 
-function updateAdminStats() {
-  const DB = loadDB();
-  document.getElementById('aTotal').textContent = DB.tickets.length;
-  document.getElementById('aNew').textContent = DB.tickets.filter(t => t.status === 'Baru').length;
-  document.getElementById('aProc').textContent = DB.tickets.filter(t => t.status === 'Dalam Proses').length;
-  document.getElementById('aDone').textContent = DB.tickets.filter(t => t.status === 'Selesai').length;
-}
+  const blobs = await fetchBlobsInBatches(photoIds, 10);
 
-function renderAdminRecent() {
-  const DB = loadDB();
-  const tickets = [...DB.tickets].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
-  document.getElementById('adminRecentList').innerHTML = tickets.map(t => ticketCard(t, false)).join('') || '<div style="text-align:center;padding:32px;color:var(--text-3)">Belum ada laporan</div>';
-  renderLoadMoreButton('adminRecentList', 'admin');
-}
-
-function renderSchoolTable() {
-  const DB = loadDB();
-  const q = (document.getElementById('schoolListSearch').value || '').toLowerCase();
-  const schools = DB.schools.filter(s => s.name.toLowerCase().includes(q) || s.id.includes(q));
-  document.getElementById('schoolTableBody').innerHTML = schools.map(s => {
-    const cnt = DB.tickets.filter(t => isTicketForSchool(t, s.id)).length;
-    return `<tr>
-      <td><code style="background:var(--neutral);padding:2px 6px;border-radius:4px;font-size:12px">${s.id}</code></td>
-      <td><strong>${s.name}</strong></td>
-      <td><span class="badge badge-new">${s.level}</span></td>
-      <td>${s.city}</td>
-      <td>${cnt}</td>
-      <td style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="btn btn-sm btn-outline" onclick="openEditSchool('${s.id}')" style="font-size:12px">Edit</button>
-        <button class="btn btn-sm btn-outline" onclick="openResetPass('${s.id}','${s.name.replace(/'/g, '\\\'')}')" style="font-size:12px">Reset Pass</button>
-      </td>
-    </tr>`;
-  }).join('');
-}
-
-function renderAdminTickets() {
-  const DB = loadDB();
-  const q = (document.getElementById('adminReportSearch').value || '').toLowerCase();
-  let tickets = [...DB.tickets];
-  if (adminTicketFilter !== 'all') tickets = tickets.filter(t => t.status === adminTicketFilter);
-  if (q) tickets = tickets.filter(t => t.schoolName.toLowerCase().includes(q) || t.topic.toLowerCase().includes(q) || t.reporter.toLowerCase().includes(q) || t.id.toLowerCase().includes(q));
-  tickets.sort((a, b) => new Date(b.date) - new Date(a.date));
-  document.getElementById('adminAllTickets').innerHTML = tickets.map(t => ticketCard(t, false)).join('') || '<div style="text-align:center;padding:32px;color:var(--text-3)">Tidak ada laporan</div>';
-  renderLoadMoreButton('adminAllTickets', 'admin');
-}
-
-function filterAdminTickets(status, btn) {
-  adminTicketFilter = status;
-  document.querySelectorAll('#admin-reports .filter-chip').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  renderAdminTickets();
-}
-
-function renderUserTable() {
-  const DB = loadDB();
-  document.getElementById('userTableBody').innerHTML = DB.schools.map(s => `
-    <tr>
-      <td><code style="background:var(--neutral);padding:2px 6px;border-radius:4px;font-size:12px">${s.id}</code></td>
-      <td>${s.name}</td>
-      <td>${s.firstLogin ? '<span class="badge badge-new">Belum Login</span>' : '<span class="badge badge-done">Sudah Login</span>'}</td>
-      <td><button class="btn btn-sm btn-danger" onclick="openResetPass('${s.id}','${s.name.replace(/'/g, '\\\'')}')" style="font-size:12px">Reset Password</button></td>
-    </tr>
-  `).join('');
-}
-
-async function addSchool() {
-  const npsn = document.getElementById('a_npsn').value.trim();
-  const name = document.getElementById('a_sname').value.trim();
-  const level = document.getElementById('a_level').value;
-  const city = document.getElementById('a_city').value.trim();
-  const defpass = document.getElementById('a_defpass').value.trim();
-  if (!npsn || npsn.length !== 8 || isNaN(npsn)) return alert('NPSN harus 8 digit angka');
-  if (!name) return alert('Nama sekolah wajib diisi');
-  const DB = loadDB();
-  if (DB.schools.find(s => s.id === npsn)) return alert('NPSN sudah terdaftar');
-  const defaultPassword = defpass || npsn;
-  const passwordHash = await hashPassword(defaultPassword);
-  const newSchool = { id: npsn, name, level, city, passwordHash, firstLogin: true };
-  DB.schools.push(newSchool);
-  if (window.fbSaveSchool) window.fbSaveSchool(newSchool);
-  document.getElementById('a_npsn').value = '';
-  document.getElementById('a_sname').value = '';
-  document.getElementById('a_city').value = '';
-  document.getElementById('a_defpass').value = '';
-  renderSchoolTable();
-  alert('Sekolah berhasil ditambahkan! NPSN: ' + npsn);
-}
-
-// Global variable to store excel data
-let excelDataToImport = [];
-
-function downloadExcelTemplate() {
-  if (typeof XLSX === 'undefined') {
-    alert('Library XLSX tidak terload. Silakan refresh halaman.');
-    return;
+  // map id -> blob
+  const blobMap = {};
+  for(let i=0;i<photoIds.length;i++){
+    blobMap[photoIds[i]] = blobs[i];
   }
-  
-  try {
-    const ws_data = [
-      ['NPSN', 'Nama Sekolah', 'Jenjang', 'Kota', 'Password (Opsional)'],
-      ['12345678', 'SD Maju Jaya', 'SD', 'Jakarta', ''],
-      ['87654321', 'SMP Pintar', 'SMP', 'Bandung', 'sandi123'],
-      ['11223344', 'SMA Berprestasi', 'SMA', 'Surabaya', '']
-    ];
-    
-    const ws = XLSX.utils.aoa_to_sheet(ws_data);
-    ws['!cols'] = [
-      { wch: 12 },
-      { wch: 30 },
-      { wch: 10 },
-      { wch: 15 },
-      { wch: 20 }
-    ];
-    
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Sekolah');
-    
-    const fileName = 'Template_Import_Sekolah.xlsx';
-    XLSX.writeFile(wb, fileName);
-  } catch (err) {
-    console.error('Error generating template:', err);
-    alert('Gagal membuat template: ' + err.message);
+
+  const renderFn = (h, idx) => {
+    const c = document.createElement('div'); c.className='card';
+    const t = document.createElement('div'); t.className='meta'; const timeTxt = h.time ? ` • ${h.time}` : '';
+    t.textContent = `${h.action.toUpperCase()} • ${h.itemName} • ${h.by || h.borrower || ''} • ${formatDate(h.date)}${timeTxt}`;
+    c.appendChild(t);
+
+    if(h.photo && blobMap[h.photo]){
+      const pv = document.createElement('div'); pv.className='preview';
+      const im = document.createElement('img'); im.loading='lazy';
+      const url = getObjectURLFor(h.photo, blobMap[h.photo]);
+      im.src = url || '';
+      im.alt='photo'; im.style.maxHeight='180px'; im.style.objectFit='cover';
+      im.addEventListener('click', ()=> openImageModal(url));
+      pv.appendChild(im); c.appendChild(pv);
+    }
+
+    // signature below photo
+    if(h.signPhoto && blobMap[h.signPhoto]){
+      const sigWrap = document.createElement('div');
+      sigWrap.className = 'meta';
+      sigWrap.style.marginTop = '8px';
+      sigWrap.style.display = 'flex';
+      sigWrap.style.flexDirection = 'column';
+      sigWrap.style.gap = '6px';
+
+      const lbl = document.createElement('div');
+      lbl.textContent = 'Tanda Tangan:';
+      lbl.style.fontSize = '12px';
+      lbl.style.color = '#444';
+      sigWrap.appendChild(lbl);
+
+      const sigImg = document.createElement('img'); sigImg.loading='lazy';
+      sigImg.src = getObjectURLFor(h.signPhoto, blobMap[h.signPhoto]) || '';
+      sigImg.alt = 'signature';
+      sigImg.style.maxHeight = '80px';
+      sigImg.style.objectFit = 'contain';
+      sigImg.style.border = '1px solid #eee';
+      sigImg.style.borderRadius = '6px';
+      sigWrap.appendChild(sigImg);
+      c.appendChild(sigWrap);
+    }
+
+    return c;
+  };
+
+  await renderInBatches('history', historyData, 20, renderFn, historyWrap);
+}
+
+function populateSelects(){
+  const borrowSel = el('borrowSelect'); if(borrowSel) borrowSel.innerHTML = '<option value="">Pilih barang yang tersedia…</option>';
+  const returnSel = el('returnSelect'); if(returnSel) returnSel.innerHTML = '<option value="">Pilih barang yang dipinjam…</option>';
+  for(const it of state.items){
+    if(it.status==='available' && borrowSel) borrowSel.insertAdjacentHTML('beforeend', `<option value="${it.id}">${escapeHtml(it.name)} ${it.category? ' ('+escapeHtml(it.category)+')':''}</option>`);
+    if(it.status==='borrowed' && returnSel) returnSel.insertAdjacentHTML('beforeend', `<option value="${it.id}">${escapeHtml(it.name)} — ${escapeHtml(it.borrowedBy||'')}</option>`);
   }
 }
 
-function previewExcelData(input) {
-  const file = input.files[0];
-  if (!file) return;
-  
-  const reader = new FileReader();
-  reader.onload = (e) => {
+/* Render Manage Items with delegation-friendly buttons */
+let manageFilter = 'all';
+let dashboardFilter = 'all';
+function renderManage(highlightId=null){
+  const wrap = el('manageList'); if(!wrap) return;
+  wrap.innerHTML='';
+  let items = [...state.items];
+  if(manageFilter !== 'all') items = items.filter(it => it.status === manageFilter);
+  const query = el('manageSearch')?.value.trim().toLowerCase() || '';
+  if(query) items = items.filter(it => (it.name || '').toLowerCase().includes(query) || (it.category || '').toLowerCase().includes(query) || (it.desc || '').toLowerCase().includes(query));
+  if(items.length === 0){ wrap.innerHTML = '<div class="card"><div class="meta">Tidak ada barang yang ditemukan.</div></div>'; return; }
+
+  const newest = items[items.length - 1];
+  const sorted = items.slice(0, -1).sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+  const finalList = newest ? [newest, ...sorted] : sorted;
+
+  const frag = document.createDocumentFragment();
+
+  for(const it of finalList){
+    const card = document.createElement('div'); card.className = 'card ' + (it.status === 'available' ? 'available' : 'borrowed'); card.dataset.id = it.id;
+    if(highlightId && it.id === highlightId){ card.style.backgroundColor = '#d1fae5'; setTimeout(()=>{ card.style.backgroundColor=''; }, 3000); }
+    const top = document.createElement('div'); top.className='top';
+    top.appendChild(document.createElement('div')).textContent = it.category || '';
+    const badge = document.createElement('div'); badge.className = 'badge ' + (it.status==='available'?'available':'borrowed');
+    badge.textContent = it.status==='available' ? 'Tersedia' : 'Dipinjam';
+    top.appendChild(badge); card.appendChild(top);
+    const h = document.createElement('h3'); h.textContent = it.name; card.appendChild(h);
+    const p = document.createElement('div'); p.className='meta'; p.textContent = it.desc || ''; card.appendChild(p);
+
+    const actions = document.createElement('div'); actions.className='actions';
+    const qrBtn = document.createElement('button'); qrBtn.className='btn ghost'; qrBtn.textContent='QR'; qrBtn.dataset.action='generate-qr'; qrBtn.dataset.id = it.id;
+    actions.appendChild(qrBtn);
+    if(it.status === 'available'){
+      const editBtn = document.createElement('button'); editBtn.className='btn primary'; editBtn.textContent='Ubah'; editBtn.dataset.action='edit'; editBtn.dataset.id = it.id;
+      const delBtn = document.createElement('button'); delBtn.className='btn danger'; delBtn.textContent='Hapus'; delBtn.dataset.action='delete'; delBtn.dataset.id = it.id;
+      actions.appendChild(editBtn); actions.appendChild(delBtn);
+    }
+    card.appendChild(actions);
+    frag.appendChild(card);
+  }
+
+  wrap.appendChild(frag);
+}
+
+/* Photo processing (fixed preview bug) */
+function resizeImage(file, maxW, maxH){ return new Promise((resolve)=>{ const img = new Image(); const reader = new FileReader(); reader.onload = e=>{ img.onload = ()=>{ const canvas = document.createElement('canvas'); let { width, height } = img; if (width > maxW || height > maxH){ const scale = Math.min(maxW / width, maxH / height); width *= scale; height *= scale; } canvas.width = width; canvas.height = height; canvas.getContext('2d').drawImage(img, 0, 0, width, height); let quality = 0.8; if (file.size > 2 * 1024 * 1024) quality = 0.6; else if (file.size > 1 * 1024 * 1024) quality = 0.7; resolve(canvas.toDataURL('image/webp', quality)); }; img.onerror = ()=> resolve(null); img.src = e.target.result; }; reader.onerror = ()=> resolve(null); reader.readAsDataURL(file); }); }
+
+// helper: convert dataURL to Blob
+function dataURLtoBlob(dataurl) {
+  try{
+    const arr = dataurl.split(',');
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/webp';
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while(n--) u8arr[n] = bstr.charCodeAt(n);
+    return new Blob([u8arr], { type: mime });
+  }catch(e){
+    console.error('dataURLtoBlob failed', e);
+    return null;
+  }
+}
+
+async function processPhotoInput(file, previewEl) {
+  try{
+    if (!file) return null;
+    if (file.size > 10 * 1024 * 1024) { showToast('Maks 10MB','warning'); return null; }
+    const resizedData = await resizeImage(file, 1024, 1024);
+    if(!resizedData) return null;
+    const blob = dataURLtoBlob(resizedData);
+    const photoId = 'photo_' + uid();
+    await putPhoto(photoId, blob);
+    photoCache.set(photoId, blob);
+    const url = getObjectURLFor(photoId, blob);
+    previewEl.innerHTML = `<img src="${url}" alt="preview">`;
+    if (typeof showToast === 'function') { showToast('Foto Ditambahkan', 'success'); }
+    previewEl.hidden = false;
+    _ensureCacheLimit();
+    return photoId;
+  }
+  catch(err){
+    console.error('processPhotoInput failed', err);
+    return null;
+  }
+}
+
+/* -------------------- Signature pad for borrow & return (auto-injected) -------------------- */
+
+// helper: create signature UI and pad
+function makeSignaturePad(canvasId, clearBtnId) {
+  const canvas = document.getElementById(canvasId);
+  if(!canvas) return null;
+
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+
+  // Sync canvas internal resolution to its CSS rendered size
+  function syncSize() {
+    const w = canvas.offsetWidth;
+    const h = canvas.offsetHeight;
+    if(!w || !h) return;
+    canvas.width  = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    ctx.scale(dpr, dpr);
+    ctx.lineWidth   = 2;
+    ctx.lineCap     = 'round';
+    ctx.lineJoin    = 'round';
+    ctx.strokeStyle = '#1a1a2e';
+  }
+
+  syncSize();
+
+  // Keep in sync if layout changes (orientation, panel resize, etc.)
+  if(window.ResizeObserver) {
+    new ResizeObserver(() => syncSize()).observe(canvas);
+  }
+
+  let drawing = false;
+  let points  = [];
+
+  function getPos(e) {
+    const r   = canvas.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return { x: src.clientX - r.left, y: src.clientY - r.top };
+  }
+
+  function startDraw(e) {
+    drawing = true;
+    const p = getPos(e);
+    points  = [p, p];
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+  }
+
+  function moveDraw(e) {
+    if(!drawing) return;
+    const p = getPos(e);
+    points.push(p);
+    if(points.length > 4) points.shift();
+    const p1  = points[points.length - 2];
+    const p2  = points[points.length - 1];
+    const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+    ctx.quadraticCurveTo(p1.x, p1.y, mid.x, mid.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(mid.x, mid.y);
+  }
+
+  function endDraw() {
+    if(!drawing) return;
+    drawing = false;
+    const p = points[points.length - 1];
+    if(p) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, ctx.lineWidth / 2, 0, Math.PI * 2);
+      ctx.fillStyle = ctx.strokeStyle;
+      ctx.fill();
+    }
+    points = [];
+  }
+
+  canvas.addEventListener('mousedown',  e => { e.preventDefault(); startDraw(e); });
+  canvas.addEventListener('mousemove',  e => { e.preventDefault(); moveDraw(e);  });
+  canvas.addEventListener('mouseup',        () => endDraw());
+  canvas.addEventListener('mouseleave',     () => endDraw());
+
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); startDraw(e); }, { passive: false });
+  canvas.addEventListener('touchmove',  e => { e.preventDefault(); moveDraw(e);  }, { passive: false });
+  canvas.addEventListener('touchend',   e => { e.preventDefault(); endDraw();    }, { passive: false });
+
+  const clearBtn = document.getElementById(clearBtnId);
+  if(clearBtn) clearBtn.addEventListener('click', () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  });
+
+  function getDataUrl() {
     try {
-      const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: 'array' });
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-      
-      if (rows.length < 2) {
-        alert('File Excel kosong atau tidak memiliki data');
-        return;
-      }
-      
-      // Skip header row
-      const dataRows = rows.slice(1).filter(row => row[0] && row[1]);
-      excelDataToImport = [];
-      let html = '';
-      
-      dataRows.forEach((row, idx) => {
-        const npsn = String(row[0]).trim();
-        const name = String(row[1]).trim();
-        const level = String(row[2]).trim() || 'SD';
-        const city = String(row[3]).trim();
-        const password = row[4] ? String(row[4]).trim() : '';
-        
-        // Validate NPSN
-        if (npsn.length !== 8 || isNaN(npsn)) {
-          html += `<tr style="background:var(--danger-pale);opacity:0.6"><td>${npsn}</td><td>${name}</td><td>${level}</td><td>${city}</td><td>${password || '(NPSN)'}</td></tr>`;
-          return;
-        }
-        
-        excelDataToImport.push({ npsn, name, level, city, password });
-        html += `<tr><td><code style="background:var(--neutral);padding:2px 6px;border-radius:4px;font-size:12px">${npsn}</code></td><td>${name}</td><td><span class="badge badge-new">${level}</span></td><td>${city}</td><td>${password || '(NPSN)'}</td></tr>`;
-      });
-      
-      document.getElementById('excelTableBody').innerHTML = html;
-      document.getElementById('excelPreview').classList.remove('hidden');
-    } catch (err) {
-      alert('Gagal membaca file Excel: ' + err.message);
-      console.error(err);
-    }
-  };
-  reader.readAsArrayBuffer(file);
+      const blank = document.createElement('canvas');
+      blank.width  = canvas.width;
+      blank.height = canvas.height;
+      return canvas.toDataURL() === blank.toDataURL() ? '' : canvas.toDataURL();
+    } catch(e) { return canvas.toDataURL(); }
+  }
+
+  return { getDataUrl, clear: () => ctx.clearRect(0, 0, canvas.width, canvas.height) };
 }
 
-async function importExcelData() {
-  if (excelDataToImport.length === 0) {
-    alert('Tidak ada data valid untuk diimport');
-    return;
-  }
-  
-  const DB = loadDB();
-  let successCount = 0;
-  let duplicateCount = 0;
-  
-  for (const schoolData of excelDataToImport) {
-    // Check if school already exists
-    if (DB.schools.find(s => s.id === schoolData.npsn)) {
-      duplicateCount++;
-      continue;
-    }
-    
-    const defaultPassword = schoolData.password || schoolData.npsn;
-    const passwordHash = await hashPassword(defaultPassword);
-    const newSchool = {
-      id: schoolData.npsn,
-      name: schoolData.name,
-      level: schoolData.level,
-      city: schoolData.city,
-      passwordHash,
-      firstLogin: true
-    };
-    
-    DB.schools.push(newSchool);
-    if (window.fbSaveSchool) await window.fbSaveSchool(newSchool);
-    successCount++;
-  }
-  
-  cancelExcelImport();
-  renderSchoolTable();
-  
-  let message = `${successCount} sekolah berhasil diimport`;
-  if (duplicateCount > 0) message += ` (${duplicateCount} data duplikat dilewati)`;
-  alert(message);
+// inject signature UI — canvas full width, X button overlaid on top-right corner
+function injectSignatureUI(formId, canvasId, clearBtnId) {
+  const form = document.getElementById(formId);
+  if(!form) return;
+  if(form.querySelector('#' + canvasId)) return;
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'sig-wrap';
+  wrapper.innerHTML = `
+    <div class="field-label" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2);font-weight:600;margin-bottom:6px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+      Tanda Tangan (wajib)
+    </div>
+    <div class="sig-canvas-wrap">
+      <canvas id="${canvasId}"></canvas>
+      <button type="button" id="${clearBtnId}" class="sig-clear-btn">Hapus</button>
+    </div>
+    <span class="sig-hint">Gunakan jari atau stylus untuk menandatangani</span>
+  `;
+
+  // Insert before .modal-actions if present, otherwise before submit button, else append
+  const actionsDiv = form.querySelector('.modal-actions');
+  const submitBtn = form.querySelector('button[type="submit"]');
+  if(actionsDiv) form.insertBefore(wrapper, actionsDiv);
+  else if(submitBtn) form.insertBefore(wrapper, submitBtn);
+  else form.appendChild(wrapper);
 }
 
-function cancelExcelImport() {
-  document.getElementById('excelFileInput').value = '';
-  document.getElementById('excelPreview').classList.add('hidden');
-  document.getElementById('excelTableBody').innerHTML = '';
-  excelDataToImport = [];
-}
-
-// ====================== GOOGLE SHEETS IMPORT ======================
-let googleSheetDataToImport = [];
-
-function parseGoogleSheetUrl(input) {
-  const url = input.trim();
-  // Extract Sheet ID from URL
-  const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-  return match ? match[1] : null;
-}
-
-async function importFromGoogleSheet() {
-  const sheetUrlInput = document.getElementById('googleSheetUrl').value.trim();
-  if (!sheetUrlInput) {
-    alert('Masukkan URL Google Sheet atau Sheet ID');
-    return;
-  }
-  
-  const sheetId = parseGoogleSheetUrl(sheetUrlInput);
-  if (!sheetId) {
-    alert('URL Google Sheet tidak valid. Gunakan format: https://docs.google.com/spreadsheets/d/SHEET_ID/edit');
-    return;
-  }
-  
+// Inject signature UI into modal forms and wire close buttons on DOMContentLoaded
+document.addEventListener('DOMContentLoaded', () => {
   try {
-    const loadingDiv = document.getElementById('googleSheetLoading');
-    if (loadingDiv) loadingDiv.classList.remove('hidden');
-    
-    // Fetch dari CSV export (tidak perlu API key)
-    const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
-    const response = await fetch(csvUrl);
-    
-    if (!response.ok) {
-      throw new Error('Google Sheet tidak ditemukan atau tidak dapat diakses. Pastikan sheet sudah di-share dengan "Siapa saja dapat melihat".');
-    }
-    
-    const csvText = await response.text();
-    const rows = csvText.split('\
-').map(row => {
-      // Parse CSV dengan benar (handle quotes)
-      const regex = /(?:[^,\"]+|\"[^\"]*\")+/g;
-      return row.match(regex)?.map(cell => cell.replace(/^\"|\"$/g, '').trim()) || [];
-    }).filter(row => row.some(cell => cell)); // Filter empty rows
-    
-    if (rows.length < 2) {
-      throw new Error('Google Sheet kosong atau hanya memiliki header');
-    }
-    
-    // Parse data mulai dari row 2 (skip header)
-    const dataRows = rows.slice(1);
-    googleSheetDataToImport = [];
-    let html = '';
-    let validCount = 0;
-    
-    dataRows.forEach((row, idx) => {
-      const npsn = String(row[0] || '').trim();
-      const name = String(row[1] || '').trim();
-      const level = String(row[2] || 'SD').trim();
-      const city = String(row[3] || '').trim();
-      const password = String(row[4] || '').trim();
-      
-      // Validate NPSN
-      if (!npsn || npsn.length !== 8 || isNaN(npsn)) {
-        html += `<tr style=\"background:var(--danger-pale);opacity:0.6\"><td>${npsn || '(kosong)'}</td><td>${name || '(kosong)'}</td><td>${level}</td><td>${city || '(kosong)'}</td><td>${password || '(NPSN)'}</td></tr>`;
-        return;
-      }
-      
-      googleSheetDataToImport.push({ npsn, name, level, city, password });
-      validCount++;
-      html += `<tr><td><code style=\"background:var(--neutral);padding:2px 6px;border-radius:4px;font-size:12px\">${npsn}</code></td><td>${name}</td><td><span class=\"badge badge-new\">${level}</span></td><td>${city}</td><td>${password || '(NPSN)'}</td></tr>`;
-    });
-    
-    if (validCount === 0) {
-      throw new Error('Tidak ada data valid yang ditemukan. Pastikan format: NPSN (8 digit) | Nama | Jenjang | Kota | Password');
-    }
-    
-    document.getElementById('googleSheetTableBody').innerHTML = html;
-    document.getElementById('googleSheetPreview').classList.remove('hidden');
-    document.getElementById('googleSheetUrl').value = '';
-    
-    if (loadingDiv) loadingDiv.classList.add('hidden');
-  } catch (err) {
-    if (loadingDiv) loadingDiv.classList.add('hidden');
-    console.error('Error importing from Google Sheet:', err);
-    alert('Gagal membaca Google Sheet:\
-' + err.message);
-  }
-}
+    setTimeout(() => {
+      injectSignatureUI('borrowForm', 'borrowSign', 'clearBorrowSign');
+      injectSignatureUI('returnForm', 'returnSign', 'clearReturnSign');
+      // pads are initialised lazily on first modal open
+    }, 200);
+  } catch(e) { console.error('Signature UI injection failed', e); }
 
-async function confirmGoogleSheetImport() {
-  if (googleSheetDataToImport.length === 0) {
-    alert('Tidak ada data untuk diimport');
-    return;
+  // Close buttons
+  const closeBorrow = el('closeBorrowModal');
+  if (closeBorrow) closeBorrow.addEventListener('click', guardCloseBorrow);
+  const closeReturn = el('closeReturnModal');
+  if (closeReturn) closeReturn.addEventListener('click', guardCloseReturn);
+
+  // Batal buttons
+  const cancelBorrow = el('cancelBorrowBtn');
+  if (cancelBorrow) cancelBorrow.addEventListener('click', guardCloseBorrow);
+  const cancelReturn = el('cancelReturnBtn');
+  if (cancelReturn) cancelReturn.addEventListener('click', guardCloseReturn);
+
+  // Backdrop click closes modal
+  ['borrowModal','returnModal','quickScanModal'].forEach(modalId => {
+    const modal = el(modalId);
+    if (!modal) return;
+    modal.addEventListener('click', e => {
+      // Only close if clicking directly on the overlay (not on the card)
+      if (e.target === modal) {
+        if (modalId === 'borrowModal') guardCloseBorrow();
+        else if (modalId === 'returnModal') guardCloseReturn();
+        else QRScanner.stopAll();
+      }
+    });
+  });
+});
+
+/* -------------------- end signature helpers -------------------- */
+
+/* --- Event wiring (one-time) --- */
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', e=> { showView(t.dataset.tab); }));
+if(el('q')) el('q').addEventListener('input', throttle(()=> renderDashboardList(), 180));
+if(el('clearSearch')) el('clearSearch').addEventListener('click', ()=> { el('q').value=''; renderDashboardList(); });
+
+// dashboard filters
+document.querySelectorAll('#dashboardFilters [data-dash-filter]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    dashboardFilter = btn.dataset.dashFilter;
+    document.querySelectorAll('#dashboardFilters .btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderDashboardList();
+  });
+});
+
+if(el('addForm')) el('addForm').addEventListener('submit', e=> { e.preventDefault(); try{ const name = el('name').value.trim(); if(!name) { showToast('Masukkan nama', 'warning'); return; } const item = { id: uid('itm'), name, category: el('category').value.trim(), desc: el('desc').value.trim(), status:'available' }; state.items.unshift(item); save(); el('addForm').reset(); renderManage(item.id); renderStats(); renderDashboardList(); showToast('Barang ditambahkan', 'success'); }catch(err){ console.error(err); showToast('Gagal menambah barang','danger'); } });
+
+/* Borrow/Return forms */
+if(el('borrowForm')) el('borrowForm').addEventListener('submit', async e=> {
+  e.preventDefault();
+  try{
+    const id = el('borrowSelect').value; if(!id) return showToast('Pilih barang', 'warning');
+    const borrower = el('borrower').value.trim(); if(!borrower) { showToast('Masukkan nama peminjam', 'warning'); return; }
+    const now = new Date();
+    const bDate = now.toISOString().split('T')[0];
+    const bTime = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const exp = el('expectedReturn').value || '';
+    const photoInput = el('borrowPhoto');
+    photoInput.setAttribute('required', 'true');
+    const photoId = photoInput.dataset.photoId || null;
+    if (!photoId) { showToast('Harap ambil foto saat meminjam', 'warning'); return; }
+
+    // signature (wajib)
+    const signPad = window.__borrowSignPad;
+    const signData = signPad ? signPad.getDataUrl() : '';
+    if(!signData || signData.length < 40){ showToast('Harap isi tanda tangan saat meminjam', 'warning'); return; }
+    let signId = null;
+    try{
+      const signBlob = dataURLtoBlob(signData);
+      if(signBlob){ signId = 'sign_' + uid(); await putPhoto(signId, signBlob); photoCache.set(signId, signBlob); }
+    }catch(err){ console.error('saving sign failed', err); }
+
+    const item = state.items.find(x=>x.id===id);
+    if (!item) return showToast('Barang tidak ditemukan', 'danger');
+    item.status = 'borrowed';
+    item.borrowedBy = borrower;
+    item.borrowDate = bDate;
+    item.borrowTime = bTime;
+    item.expectedReturn = exp;
+    item.photo = photoId;
+    state.history.push({ action: 'borrowed', itemId: id, itemName: item.name, borrower, date: bDate, time: bTime, expectedReturn: exp || '', photo: photoId, signPhoto: signId || null });
+    save();
+    el('borrowForm').reset(); el('borrowPreview').hidden = true;
+    setTimeout(() => resetPhotoFrame('borrowPhotoContainer','borrowPhoto','borrowPreview'), 250);
+    // clear signature pad UI
+    try{ if(window.__borrowSignPad) window.__borrowSignPad.clear(); }catch(e){};
+
+    populateSelects();
+    renderStats(); await renderDashboardList(); renderHistoryList();
+    closeBorrowModal();
+    showToast('Peminjaman tercatat');
+  }catch(err){
+    console.error(err);
+    showToast('Gagal mencatat peminjaman','danger');
   }
-  
-  const DB = loadDB();
-  let successCount = 0;
-  let duplicateCount = 0;
-  
-  for (const schoolData of googleSheetDataToImport) {
-    if (DB.schools.find(s => s.id === schoolData.npsn)) {
-      duplicateCount++;
-      continue;
-    }
+});
+
+if(el('returnForm')) el('returnForm').addEventListener('submit', async e=> {
+  e.preventDefault();
+  try{
+    const id = el('returnSelect').value; if(!id) return showToast('Pilih barang', 'warning');
+    const now = new Date();
+    const rDate = now.toISOString().split('T')[0];
+    const rTime = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const photoInput = el('returnPhoto');
+    photoInput.setAttribute('required', 'true');
+    const photoId = photoInput.dataset.photoId || null;
+    if (!photoId) { showToast('Harap ambil foto saat pengembalian', 'warning'); return; }
+
+    // signature (wajib)
+    const signPad = window.__returnSignPad;
+    const signData = signPad ? signPad.getDataUrl() : '';
+    if(!signData || signData.length < 40){ showToast('Harap isi tanda tangan saat pengembalian', 'warning'); return; }
+    let signId = null;
+    try{
+      const signBlob = dataURLtoBlob(signData);
+      if(signBlob){ signId = 'sign_' + uid(); await putPhoto(signId, signBlob); photoCache.set(signId, signBlob); }
+    }catch(err){ console.error('saving sign failed', err); }
+
+    const item = state.items.find(x=>x.id===id); if(!item) { showToast('Barang tidak ditemukan', 'danger'); return; }
+    state.history.push({ action:'returned', itemId:id, itemName:item.name, borrower: item.borrowedBy || null, date:rDate, time: rTime, photo: photoId, signPhoto: signId || null });
+    item.status='available';
+    item.borrowedBy=null;
+    item.borrowDate=null;
+    item.borrowTime=null;
+    item.expectedReturn=null;
+    item.photo = photoId;
+    save();
+    el('returnForm').reset(); el('returnPreview').hidden=true;
+    setTimeout(() => resetPhotoFrame('returnPhotoContainer','returnPhoto','returnPreview'), 250);
+    // clear signature pad UI
+    try{ if(window.__returnSignPad) window.__returnSignPad.clear(); }catch(e){};
+
+    populateSelects();
+    renderStats(); await renderDashboardList(); renderHistoryList();
+    closeReturnModal();
+    showToast('Pengembalian tercatat');
+  }catch(err){
+    console.error(err);
+    showToast('Gagal mencatat pengembalian','danger');
+  }
+});
+
+/* Photo inputs */
+if(el('borrowPhoto')) el('borrowPhoto').addEventListener('change', async e => {
+  const photoId = await processPhotoInput(e.target.files[0], el('borrowPreview'));
+  e.target.dataset.photoId = photoId || '';
+  const body = el('borrowModal')?.querySelector('.form-modal-body');
+  setTimeout(() => { if(body) body.scrollTo({ top: body.scrollHeight, behavior: 'smooth' }); }, 300);
+});
+
+if(el('returnPhoto')) el('returnPhoto').addEventListener('change', async e => {
+  const photoId = await processPhotoInput(e.target.files[0], el('returnPreview'));
+  e.target.dataset.photoId = photoId || '';
+  const body = el('returnModal')?.querySelector('.form-modal-body');
+  setTimeout(() => { if(body) body.scrollTo({ top: body.scrollHeight, behavior: 'smooth' }); }, 300);
+});
+
+/* history month */
+
+// Event: ubah bulan pada tab Riwayat
+if (el('historyMonth')) {
+  el('historyMonth').addEventListener('change', () => {
+    renderHistoryList();
+  });
+}
+/* Updated PDF Export */
+if (el('exportMonthPdf')) el('exportMonthPdf').addEventListener('click', async () => {
+  try {
+    const selectedMonth = el('historyMonth').value;
+    if (!selectedMonth) return showToast("Silakan pilih bulan terlebih dahulu.", "warning");
+
+    const [year, month] = selectedMonth.split('-');
+    const monthName = new Date(`${selectedMonth}-01`).toLocaleString('id-ID', { month: 'long' });
     
-    const defaultPassword = schoolData.password || schoolData.npsn;
-    const passwordHash = await hashPassword(defaultPassword);
-    const newSchool = {
-      id: schoolData.npsn,
-      name: schoolData.name,
-      level: schoolData.level,
-      city: schoolData.city,
-      passwordHash,
-      firstLogin: true
+    // Get school name from input field or use default
+    const schoolName = el('schoolName')?.value?.trim() || 'Nama Sekolah';
+
+    const monthData = state.history.filter(h => {
+      const date = new Date(h.date);
+      return date.toISOString().slice(0, 7) === selectedMonth;
+    }).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    if (monthData.length === 0) return showToast("Tidak ada data untuk bulan ini.", "info");
+
+    // Show progress for PDF generation
+    showProgress("Menyiapkan PDF...", 10);
+
+    // Group by borrower + item to avoid duplicates
+    // Simple approach: Use crypto.randomUUID() for unique keys
+
+// Generate unique transaction groups using crypto UUID
+const grouped = {};
+const borrowTransactions = new Map(); // Track active borrows
+
+monthData.forEach(h => {
+  if (h.action === "borrowed") {
+    // Create unique key using crypto UUID
+    const uniqueKey = crypto.randomUUID ? crypto.randomUUID() : 
+      'uuid-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now();
+    
+    grouped[uniqueKey] = {
+      nama: h.borrower || h.by || '',
+      barang: h.itemName,
+      tanggalPinjam: h.date,
+      jamPinjam: h.time || "",
+      tanggalPerkiraan: h.expectedReturn || "",
+      tanggalKembali: "",
+      jamKembali: "",
+      status: "Dipinjam",
+      borrowSignPhoto: h.signPhoto,
+      returnSignPhoto: null
     };
     
-    DB.schools.push(newSchool);
-    if (window.fbSaveSchool) await window.fbSaveSchool(newSchool);
-    successCount++;
-  }
-  
-  cancelGoogleSheetImport();
-  renderSchoolTable();
-  
-  let message = `${successCount} sekolah berhasil diimport dari Google Sheet`;
-  if (duplicateCount > 0) message += ` (${duplicateCount} data duplikat dilewati)`;
-  alert(message);
-}
-
-function cancelGoogleSheetImport() {
-  document.getElementById('googleSheetUrl').value = '';
-  document.getElementById('googleSheetPreview').classList.add('hidden');
-  document.getElementById('googleSheetTableBody').innerHTML = '';
-  document.getElementById('googleSheetLoading').classList.add('hidden');
-  googleSheetDataToImport = [];
-}
-
-function openEditSchool(npsn) {
-  const DB = loadDB();
-  const school = DB.schools.find(s => s.id === npsn);
-  if (!school) return alert('Sekolah tidak ditemukan');
-  
-  document.getElementById('e_npsn').value = school.id;
-  document.getElementById('e_npsn').disabled = true;
-  document.getElementById('e_sname').value = school.name;
-  document.getElementById('e_level').value = school.level;
-  document.getElementById('e_city').value = school.city;
-  
-  document.getElementById('editSchoolModal').classList.add('show');
-}
-
-function closeEditSchool() {
-  document.getElementById('editSchoolModal').classList.remove('show');
-}
-
-async function saveEditSchool() {
-  const npsn = document.getElementById('e_npsn').value.trim();
-  const name = document.getElementById('e_sname').value.trim();
-  const level = document.getElementById('e_level').value;
-  const city = document.getElementById('e_city').value.trim();
-  
-  if (!name) return alert('Nama sekolah wajib diisi');
-  if (!level) return alert('Jenjang wajib diisi');
-  if (!city) return alert('Kota/Kabupaten wajib diisi');
-  
-  const DB = loadDB();
-  const schoolIndex = DB.schools.findIndex(s => s.id === npsn);
-  if (schoolIndex === -1) return alert('Sekolah tidak ditemukan');
-  
-  const updatedSchool = {
-    ...DB.schools[schoolIndex],
-    name,
-    level,
-    city
-  };
-  
-  DB.schools[schoolIndex] = updatedSchool;
-  
-  if (window.fbUpdateSchool) {
-    await window.fbUpdateSchool(npsn, { name, level, city });
-  }
-  
-  closeEditSchool();
-  renderSchoolTable();
-  alert('Data sekolah berhasil diperbarui!');
-}
-
-// ====================== TICKET CARD ======================
-function ticketCard(t, isSchool) {
-  const statusClass = t.status === 'Baru' ? 'badge-new' : t.status === 'Dalam Proses' ? 'badge-process' : 'badge-done';
-  const date = new Date(t.date).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  return `<div class="ticket">
-    <div class="ticket-head">
-      <div>
-        <div class="ticket-id">${t.id} · ${date}</div>
-        <div class="ticket-title">${t.topic}</div>
-      </div>
-      <span class="badge ${statusClass}">${t.status}</span>
-    </div>
-    <div class="ticket-body">${t.desc.substring(0, 120)}${t.desc.length > 120 ? '...' : ''}</div>
-    <div class="ticket-meta">
-      <span>${SVGIcons.user} ${t.reporter}</span>
-      ${t.wa ? `<span>${SVGIcons.phone} ${t.wa}</span>` : ''}
-      ${!isSchool ? `<span>${SVGIcons.building} ${t.schoolName}</span>` : ''}
-    </div>
-    ${t.notes ? `<div style="margin-top:8px;font-size:12px;background:var(--success-pale);padding:6px 10px;border-radius:6px;color:var(--success);display:flex;align-items:center;gap:6px;word-break:break-word;overflow-wrap:anywhere">${SVGIcons.clipboard} ${t.notes}</div>` : ''}
-    <div style="margin-top:12px;display:flex;gap:8px">
-      <button class="btn btn-sm btn-outline" onclick="openTicket('${t.id}',${isSchool})">Lihat Detail</button>
-      <button class="btn btn-sm btn-outline" onclick="printSingleTicketPDF('${t.id}')" style="gap:6px">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-        Cetak
-      </button>
-    </div>
-  </div>`;
-}
-
-function openTicket(id, isSchool) {
-  document.getElementById('modalTicketId').textContent = 'Memuat detail...';
-  document.getElementById('modalTicketContent').innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-3)">Memuat data laporan...</div>';
-  openModal('ticketModal');
-  followUpPhotoFiles = [];
-
-  const fetchAndRender = async () => {
-    let t = null;
-    if (window.fbGetTicketFull) t = await window.fbGetTicketFull(id);
-    if (!t) {
-      const DB = loadDB();
-      t = DB.tickets.find(x => x.id === id);
-      if (!t) {
-        document.getElementById('modalTicketContent').innerHTML = '<div class="alert alert-danger"><div class="alert-icon">' + SVGIcons.x + '</div><div>Gagal memuat data laporan.</div></div>';
-        return;
-      }
-      t = { ...t, photos: [], followUpPhotos: [] };
+    // Store this borrow for matching with returns
+    const borrowKey = `${h.borrower || h.by}_${h.itemName}`;
+    if (!borrowTransactions.has(borrowKey)) {
+      borrowTransactions.set(borrowKey, []);
     }
-
-    const date = new Date(t.date).toLocaleString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const processDate = t.processDate ? new Date(t.processDate).toLocaleString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-    const completeDate = t.completeDate ? new Date(t.completeDate).toLocaleString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-    const statusClass = t.status === 'Baru' ? 'badge-new' : t.status === 'Dalam Proses' ? 'badge-process' : 'badge-done';
-
-    const photosHTML = t.photos && t.photos.length > 0 ? `
-      <div style="margin-bottom:16px">
-        <div style="font-size:12px;color:var(--text-3);margin-bottom:8px;font-weight:600;display:flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg> Foto Laporan</div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-          ${t.photos.map(p => `<img src="${p}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid var(--border);cursor:pointer" onclick="openPhotoLightbox(this.src)">`).join('')}
-        </div>
-      </div>` : '';
-
-    const { processNotes, completeNotes, processPhotos, completePhotos } = resolveTicketProgressData(t);
-
-    const processPhotosHTML = processPhotos.length > 0 ? `
-      <div style="margin-top:12px">
-        <div style="font-size:12px;color:var(--text-3);margin-bottom:6px;font-weight:600;display:flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg> Foto Tindak Lanjut</div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-          ${processPhotos.map(p => `<img src="${p}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid var(--border);cursor:pointer" onclick="openPhotoLightbox(this.src)">`).join('')}
-        </div>
-      </div>` : '';
-
-    const completePhotosHTML = completePhotos.length > 0 ? `
-      <div style="margin-top:12px">
-        <div style="font-size:12px;color:var(--text-3);margin-bottom:6px;font-weight:600;display:flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg> Foto Penyelesaian</div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-          ${completePhotos.map(p => `<img src="${p}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid var(--border);cursor:pointer" onclick="openPhotoLightbox(this.src)">`).join('')}
-        </div>
-      </div>` : '';
-
-    document.getElementById('modalTicketId').textContent = 'Detail Laporan — ' + t.id;
-    document.getElementById('modalTicketContent').innerHTML = `
-      <div style="text-align:right;margin-bottom:12px">
-        <button class="btn btn-sm btn-outline" onclick="printSingleTicketPDF('${t.id}')" style="gap:6px;font-size:12px">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-          Cetak PDF
-        </button>
-      </div>
-      <!-- BAGIAN 1: LAPORAN AWAL (BIRU) -->
-      <div style="background:var(--primary-pale);border:2px solid var(--primary);border-radius:12px;padding:16px;margin-bottom:16px">
-        <div style="font-size:12px;color:var(--primary);font-weight:700;margin-bottom:8px;text-transform:uppercase;display:flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Laporan Awal</div>
-        <div style="font-size:11px;color:var(--text-3);margin-bottom:6px">Dilaporkan: ${date}</div>
-        <div style="background:#fff;border-radius:8px;padding:12px;margin-bottom:10px">
-          <div style="font-size:12px;color:var(--text-3);margin-bottom:4px">Topik</div>
-          <div style="font-weight:600;font-size:14px;word-break:break-word;overflow-wrap:anywhere">${t.topic}</div>
-        </div>
-        <div style="background:#fff;border-radius:8px;padding:12px;margin-bottom:10px">
-          <div style="font-size:12px;color:var(--text-3);margin-bottom:4px">Deskripsi</div>
-          <div style="line-height:1.6;font-size:13px;word-break:break-word;overflow-wrap:anywhere">${t.desc}</div>
-        </div>
-        ${photosHTML}
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div style="background:#fff;border-radius:8px;padding:10px;min-width:0">
-            <div style="font-size:11px;color:var(--text-3);margin-bottom:3px">Pelapor</div>
-            <div style="font-weight:600;font-size:13px;word-break:break-word;overflow-wrap:anywhere">${t.reporter}</div>
-            <div style="font-size:11px;color:var(--text-2);word-break:break-all">${t.wa}</div>
-          </div>
-          <div style="background:#fff;border-radius:8px;padding:10px;min-width:0">
-            <div style="font-size:11px;color:var(--text-3);margin-bottom:3px">Sekolah</div>
-            <div style="font-weight:600;font-size:13px;word-break:break-word;overflow-wrap:anywhere">${t.schoolName}</div>
-            <div style="font-size:11px;color:var(--text-2)">NPSN: ${t.schoolId}</div>
-          </div>
-        </div>
-      </div>
-
-      ${(t.status === 'Dalam Proses' || t.status === 'Selesai') ? `
-      <!-- BAGIAN 2: PROSES (ORANYE) -->
-      <div style="background:#fff3e0;border:2px solid #ffb74d;border-radius:12px;padding:16px;margin-bottom:16px">
-        <div style="font-size:12px;color:#ff8c00;font-weight:700;margin-bottom:8px;text-transform:uppercase;display:flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ff8c00" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6M4.22 4.22l4.24 4.24m5.08 0l4.24-4.24M1 12h6m6 0h6m-17.78 7.78l4.24-4.24m5.08 0l4.24 4.24"/></svg> Dalam Proses</div>
-        <div style="font-size:11px;color:var(--text-3);margin-bottom:6px">Status Diubah: ${processDate}</div>
-        <div style="background:#fff;border-radius:8px;padding:12px;margin-bottom:10px">
-          <div style="font-size:12px;color:var(--text-3);margin-bottom:4px">Catatan Tindak Lanjut</div>
-          <div style="line-height:1.6;font-size:13px;color:var(--text);word-break:break-word;overflow-wrap:anywhere">${processNotes || '(Belum ada catatan)'}</div>
-        </div>
-        ${processPhotosHTML}
-      </div>
-      ` : ''}
-
-      ${t.status === 'Selesai' ? `
-      <!-- BAGIAN 3: PENYELESAIAN (HIJAU) -->
-      <div style="background:var(--success-pale);border:2px solid var(--success);border-radius:12px;padding:16px;margin-bottom:16px">
-        <div style="font-size:12px;color:var(--success);font-weight:700;margin-bottom:8px;text-transform:uppercase;display:flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Selesai</div>
-        <div style="font-size:11px;color:var(--text-3);margin-bottom:6px">Selesai: ${completeDate}</div>
-        <div style="background:#fff;border-radius:8px;padding:12px;margin-bottom:10px;border:1px solid #a9dfbf">
-          <div style="font-size:12px;color:var(--success);margin-bottom:4px;font-weight:600">Laporan ini telah selesai ditangani oleh pihak sekolah.</div>
-          <div style="line-height:1.6;font-size:13px;color:var(--text);word-break:break-word;overflow-wrap:anywhere">${completeNotes || '(Tidak ada catatan penyelesaian.)'}</div>
-        </div>
-        ${completePhotosHTML}
-      </div>
-      ` : ''}
-
-      ${isSchool && t.status !== 'Selesai' ? `
-      <!-- FORM AKSI (Untuk sekolah yang belum selesai) -->
-      <div style="border-top:2px solid var(--border);padding-top:16px;margin-top:16px">
-        <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--primary);display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> ${t.status === 'Baru' ? 'Catatan Proses' : 'Catatan Penyelesaian'}</div>
-        <textarea id="ticketNotes" placeholder="${t.status === 'Baru' ? 'Tuliskan langkah tindak lanjut yang telah dilakukan...' : 'Tuliskan hasil akhir penyelesaian laporan...'}" style="margin-bottom:12px;min-height:80px;width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;font-family:inherit">${t.status === 'Baru' ? processNotes : completeNotes}</textarea>
-        
-        <div style="font-size:12px;color:var(--text-3);margin-bottom:12px;background:var(--neutral);padding:10px;border-radius:6px">
-          ${t.status === 'Baru' ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> Foto tindak lanjut opsional saat memproses laporan.' : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Foto tindak lanjut wajib untuk menyelesaikan laporan.'}
-        </div>
-        
-        <div style="display:flex;gap:8px;margin-bottom:12px">
-          <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('followUpPhotoInputCamera').click()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg> Ambil Foto</button>
-          <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('followUpPhotoInputGallery').click()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Dari Galeri</button>
-        </div>
-        
-        <div style="font-size:11px;color:var(--text-3);text-align:center;margin-bottom:12px">Maks. 3 foto, JPG/PNG</div>
-        <div id="followUpPreview" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px"></div>
-        
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          ${t.status === 'Baru' ? `<button class="btn btn-sm" style="background:var(--warning-pale);color:var(--warning);border:2px solid #f9e79f;flex:1;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px" onclick="updateStatusModal('${t.id}','Dalam Proses')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Proses Laporan</button>` : ''}
-          ${t.status === 'Dalam Proses' ? `<button class="btn btn-sm" style="background:var(--success-pale);color:var(--success);border:2px solid #a9dfbf;flex:1;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px" onclick="updateStatusModal('${t.id}','Selesai')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Selesaikan Laporan</button>` : ''}
-        </div>
-      </div>
-      ` : ''}
-    `;
-  };
-  fetchAndRender();
-}
-
-function updateStatus(id, status) {
-  const DB = loadDB();
-  const t = DB.tickets.find(x => x.id === id);
-  if (t) {
-    t.status = status;
-    if (window.fbUpdateTicket) window.fbUpdateTicket(id, { status });
-  }
-  renderSchoolTickets();
-  updateSchoolStats();
-}
-
-function updateStatusModal(id, status) {
-  const notes = document.getElementById('ticketNotes')?.value.trim() || '';
-  if (!notes) return alert('Harap isi catatan tindak lanjut sebelum menyimpan.');
-  const photoUpdates = followUpPhotoFiles.length ? followUpPhotoFiles : null;
-  const DB = loadDB();
-  const t = DB.tickets.find(x => x.id === id);
-  if (!t) return;
-  const hasExistingProcessPhotos = (Array.isArray(t.processPhotos) && t.processPhotos.length > 0)
-    || (Array.isArray(t.followUpPhotos) && t.followUpPhotos.length > 0);
-  const hasExistingCompletePhotos = Array.isArray(t.completePhotos) && t.completePhotos.length > 0;
-  if (status === 'Selesai' && !photoUpdates && !hasExistingProcessPhotos && !hasExistingCompletePhotos) {
-    return alert('Harap lampirkan minimal 1 foto tindak lanjut.');
-  }
-  
-  const confirmMsg = status === 'Dalam Proses' 
-    ? 'Anda akan mengubah status laporan menjadi "Dalam Proses". Pastikan catatan dan lampiran sudah benar.\n\nLanjutkan?'
-    : 'Anda akan menyelesaikan laporan. Status tidak bisa diubah setelah ini.\n\nLanjutkan?';
-  
-  if (!confirm(confirmMsg)) return;
-  
-  (async () => {
-    t.status = status;
-
-    const updatePayload = { status };
-
-    if (status === 'Dalam Proses') {
-      t.processNotes = notes;
-      t.notes = notes; // backward compatibility
-      updatePayload.processNotes = notes;
-      updatePayload.notes = notes;
-
-      if (photoUpdates) {
-        t.processPhotos = photoUpdates;
-        t.followUpPhotos = photoUpdates; // backward compatibility
-        updatePayload.processPhotos = photoUpdates;
-        updatePayload.followUpPhotos = photoUpdates;
+    borrowTransactions.get(borrowKey).push(uniqueKey);
+    
+  } else if (h.action === "returned") {
+    // Find matching borrow transaction
+    const borrowKey = `${h.borrower || h.by}_${h.itemName}`;
+    const borrowKeys = borrowTransactions.get(borrowKey) || [];
+    
+    // Find the first unreturned borrow for this person/item
+    let matchedKey = null;
+    for (const key of borrowKeys) {
+      if (grouped[key] && grouped[key].status === "Dipinjam") {
+        matchedKey = key;
+        break;
       }
     }
-
-    if (status === 'Selesai') {
-      t.completeNotes = notes;
-      t.notes = notes; // backward compatibility
-      updatePayload.completeNotes = notes;
-      updatePayload.notes = notes;
-
-      if (photoUpdates) {
-        t.completePhotos = photoUpdates;
-        t.followUpPhotos = photoUpdates; // data terbaru untuk tampilan publik lama
-        updatePayload.completePhotos = photoUpdates;
-        updatePayload.followUpPhotos = photoUpdates;
-      } else if (!hasExistingCompletePhotos && hasExistingProcessPhotos) {
-        // Pertahankan snapshot penyelesaian jika sekolah tidak unggah ulang foto saat finalisasi
-        const fallbackCompletePhotos = Array.isArray(t.processPhotos) && t.processPhotos.length > 0
-          ? t.processPhotos
-          : (Array.isArray(t.followUpPhotos) ? t.followUpPhotos : []);
-        t.completePhotos = fallbackCompletePhotos;
-        updatePayload.completePhotos = fallbackCompletePhotos;
-      }
-    }
-
-    // Catat timestamp untuk proses dan penyelesaian
-    const now = new Date().toISOString();
-    if (status === 'Dalam Proses' && !t.processDate) {
-      t.processDate = now;
-    }
-    if (status === 'Selesai' && !t.completeDate) {
-      t.completeDate = now;
-    }
-    updatePayload.processDate = t.processDate;
-    updatePayload.completeDate = t.completeDate;
-    if (window.fbUpdateTicket) await window.fbUpdateTicket(id, updatePayload);
-    followUpPhotoFiles = [];
-    closeModal('ticketModal');
-    renderSchoolTickets();
-    updateSchoolStats();
-    alert('Laporan berhasil diperbarui!');
-  })();
-}
-
-// ====================== CHANGE PASSWORD ======================
-function openChangePass() {
-  document.getElementById('changePassAlert').innerHTML = '';
-  document.getElementById('newPass1').value = '';
-  document.getElementById('newPass2').value = '';
-  openModal('changePassModal');
-}
-
-async function saveNewPassword() {
-  const p1 = document.getElementById('newPass1').value;
-  const p2 = document.getElementById('newPass2').value;
-  if (p1.length < 6) return showAlert('changePassAlert', 'danger', 'Password minimal 6 karakter.');
-  if (p1 !== p2) return showAlert('changePassAlert', 'danger', 'Konfirmasi password tidak cocok.');
-  const DB = loadDB();
-  const s = DB.schools.find(x => x.id === currentUser.school.id);
-  if (s) {
-    const hash = await hashPassword(p1);
-    s.passwordHash = hash;
-    s.firstLogin = false;
-    if (window.fbUpdateSchool) await window.fbUpdateSchool(s.id, { passwordHash: hash, firstLogin: false });
-    currentUser.school = s;
-  }
-  document.getElementById('firstLoginBanner').classList.add('hidden');
-  closeModal('changePassModal');
-  alert('Password berhasil diperbarui!');
-}
-
-// ====================== SCHOOL CHANGE PASSWORD (MANDIRI) ======================
-function openSchoolChangePass() {
-  document.getElementById('schoolChangePassAlert').innerHTML = '';
-  document.getElementById('schoolOldPass').value = '';
-  document.getElementById('schoolNewPass1').value = '';
-  document.getElementById('schoolNewPass2').value = '';
-  openModal('schoolChangePassModal');
-}
-
-async function saveSchoolPassword() {
-  const oldPass = document.getElementById('schoolOldPass').value;
-  const p1 = document.getElementById('schoolNewPass1').value;
-  const p2 = document.getElementById('schoolNewPass2').value;
-  const DB = loadDB();
-  const school = DB.schools.find(x => x.id === currentUser.school.id);
-  if (!school) return showAlert('schoolChangePassAlert', 'danger', 'Data sekolah tidak ditemukan.');
-  if (!(await verifyPassword(oldPass, school))) return showAlert('schoolChangePassAlert', 'danger', 'Password saat ini tidak sesuai.');
-  if (p1.length < 8) return showAlert('schoolChangePassAlert', 'danger', 'Password baru minimal 8 karakter.');
-  if (p1 !== p2) return showAlert('schoolChangePassAlert', 'danger', 'Konfirmasi password tidak cocok.');
-  const hash = await hashPassword(p1);
-  school.passwordHash = hash;
-  school.firstLogin = false;
-  if (window.fbUpdateSchool) await window.fbUpdateSchool(school.id, { passwordHash: hash, firstLogin: false });
-  currentUser.school = school;
-  document.getElementById('firstLoginBanner').classList.add('hidden');
-  closeModal('schoolChangePassModal');
-  recordActivity('CHANGE_PASSWORD', `School: ${school.name} (${school.id})`);
-  alert('Password berhasil diperbarui!');
-}
-
-// ====================== RESET PASSWORD (ADMIN) ======================
-function openResetPass(npsn, name) {
-  resetTargetNPSN = npsn;
-  document.getElementById('resetPassContent').innerHTML = `<div class="alert alert-warning"><div class="alert-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div>Reset password untuk: <strong>${name}</strong> (NPSN: ${npsn})</div></div>`;
-  document.getElementById('resetPassVal').value = '';
-  openModal('resetPassModal');
-}
-
-async function doResetPass() {
-  const val = document.getElementById('resetPassVal').value.trim();
-  const DB = loadDB();
-  const s = DB.schools.find(x => x.id === resetTargetNPSN);
-  if (s) {
-    const newPassword = val || resetTargetNPSN;
-    const hash = await hashPassword(newPassword);
-    s.passwordHash = hash;
-    s.firstLogin = true;
-    if (window.fbUpdateSchool) await window.fbUpdateSchool(resetTargetNPSN, { passwordHash: hash, firstLogin: true });
-  }
-  closeModal('resetPassModal');
-  renderUserTable();
-  alert('Password berhasil direset! Password baru: ' + (val || resetTargetNPSN));
-}
-
-// ====================== CETAK LAPORAN PDF ======================
-
-function _statusLabel(status) {
-  return status === 'Baru' ? 'Baru' : status === 'Dalam Proses' ? 'Dalam Proses' : 'Selesai';
-}
-
-function _statusColor(status) {
-  return status === 'Baru' ? '#1a73e8' : status === 'Dalam Proses' ? '#f57c00' : '#2e7d32';
-}
-
-function _statusBg(status) {
-  return status === 'Baru' ? '#e8f0fe' : status === 'Dalam Proses' ? '#fff3e0' : '#e8f5e9';
-}
-
-function _fmtDate(iso) {
-  if (!iso) return '-';
-  return new Date(iso).toLocaleString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
-
-// Cetak DAFTAR tiket (admin atau sekolah)
-async function printTicketsPDF() {
-  const DB = loadDB();
-  let tickets = [];
-  let judulLaporan = '';
-  let subJudul = '';
-
-  if (currentUser && currentUser.type === 'school') {
-    tickets = DB.tickets.filter(t => isTicketForSchool(t, currentUser.school.id));
-    if (schoolTicketFilter !== 'all') tickets = tickets.filter(t => t.status === schoolTicketFilter);
-    judulLaporan = 'Laporan Pengaduan Sekolah';
-    subJudul = currentUser.school.name + ' · NPSN: ' + currentUser.school.id;
-  } else if (currentUser && currentUser.type === 'admin') {
-    tickets = [...DB.tickets];
-    if (adminTicketFilter !== 'all') tickets = tickets.filter(t => t.status === adminTicketFilter);
-    judulLaporan = 'Rekapitulasi Laporan Pengaduan';
-    subJudul = 'Suku Dinas Pendidikan Jakarta Timur I · Administrator';
-  } else return;
-
-  tickets.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-  const total = tickets.length;
-  const baru = tickets.filter(t => t.status === 'Baru').length;
-  const proses = tickets.filter(t => t.status === 'Dalam Proses').length;
-  const selesai = tickets.filter(t => t.status === 'Selesai').length;
-  const filterLabel = adminTicketFilter !== 'all' ? adminTicketFilter : (schoolTicketFilter !== 'all' ? schoolTicketFilter : 'Semua Status');
-  const now = new Date().toLocaleString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-
-  const rows = tickets.map((t, i) => `
-    <tr>
-      <td style="text-align:center">${i + 1}</td>
-      <td><code style="font-family:monospace;font-size:11px">${t.id}</code></td>
-      <td>${_fmtDate(t.date)}</td>
-      ${currentUser.type === 'admin' ? `<td>${t.schoolName}</td>` : ''}
-      <td>${t.topic}</td>
-      <td>${t.reporter}</td>
-      <td style="text-align:center">
-        <span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${_statusBg(t.status)};color:${_statusColor(t.status)}">${_statusLabel(t.status)}</span>
-      </td>
-    </tr>
-  `).join('');
-
-  const schoolColHeader = currentUser.type === 'admin' ? '<th>Sekolah</th>' : '';
-
-  const html = `<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8">
-  <title>${judulLaporan}</title>
-  <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #222; background: #fff; padding: 24px 32px; }
-    .header { display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #1a73e8; padding-bottom:12px; margin-bottom:16px; }
-    .header-left .app-name { font-size: 22px; font-weight: 800; color: #1a73e8; letter-spacing: 1px; }
-    .header-left .app-sub { font-size: 11px; color: #555; margin-top:2px; }
-    .header-right { text-align:right; font-size: 11px; color:#555; }
-    h1 { font-size: 16px; font-weight:700; color:#1a73e8; margin-bottom:2px; }
-    .sub { font-size:12px; color:#555; margin-bottom:14px; }
-    .stats { display:flex; gap:12px; margin-bottom:16px; }
-    .stat-box { flex:1; border:1px solid #e0e0e0; border-radius:8px; padding:10px 14px; text-align:center; }
-    .stat-box .num { font-size:22px; font-weight:800; }
-    .stat-box .lbl { font-size:10px; color:#777; margin-top:2px; }
-    .filter-info { font-size:11px; color:#555; margin-bottom:12px; background:#f5f5f5; padding:6px 12px; border-radius:6px; display:inline-block; }
-    table { width:100%; border-collapse:collapse; }
-    th { background:#1a73e8; color:#fff; padding:8px 10px; text-align:left; font-size:11px; font-weight:700; }
-    td { padding:7px 10px; border-bottom:1px solid #eee; vertical-align:top; font-size:11px; }
-    tr:nth-child(even) td { background:#f9f9f9; }
-    .footer { margin-top:20px; border-top:1px solid #ddd; padding-top:10px; font-size:10px; color:#777; display:flex; justify-content:space-between; }
-    @media print {
-      body { padding: 12px 18px; }
-      @page { margin: 1cm; size: A4 landscape; }
-    }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div class="header-left">
-      <div class="app-name"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> SiLapor</div>
-      <div class="app-sub">Sistem Laporan Sekolah</div>
-    </div>
-    <div class="header-right">
-      <div>Dicetak: ${now}</div>
-      <div>Suku Dinas Pendidikan Jakarta Timur I</div>
-    </div>
-  </div>
-
-  <h1>${judulLaporan}</h1>
-  <div class="sub">${subJudul}</div>
-
-  <div class="stats">
-    <div class="stat-box"><div class="num" style="color:#333">${total}</div><div class="lbl">Total Laporan</div></div>
-    <div class="stat-box"><div class="num" style="color:#1a73e8">${baru}</div><div class="lbl">Baru</div></div>
-    <div class="stat-box"><div class="num" style="color:#f57c00">${proses}</div><div class="lbl">Dalam Proses</div></div>
-    <div class="stat-box"><div class="num" style="color:#2e7d32">${selesai}</div><div class="lbl">Selesai</div></div>
-  </div>
-
-  <div class="filter-info">Filter: ${filterLabel} · Menampilkan ${total} laporan</div>
-
-  <table>
-    <thead>
-      <tr>
-        <th style="width:36px;text-align:center">No</th>
-        <th>No. Tiket</th>
-        <th>Tanggal</th>
-        ${schoolColHeader}
-        <th>Topik</th>
-        <th>Pelapor</th>
-        <th style="text-align:center">Status</th>
-      </tr>
-    </thead>
-    <tbody>${rows || '<tr><td colspan="7" style="text-align:center;padding:20px;color:#888">Tidak ada data laporan</td></tr>'}</tbody>
-  </table>
-
-  <div class="footer">
-    <span>© 2026 SiLapor — Dikembangkan oleh Penata Kelola Sistem dan Teknologi Informasi, Suku Dinas Pendidikan Jakarta Timur I</span>
-    <span>Halaman dicetak otomatis oleh sistem</span>
-  </div>
-</body>
-</html>`;
-
-  const win = window.open('', '_blank');
-  if (!win) return alert('Pop-up diblokir browser. Izinkan pop-up untuk fitur cetak.');
-  win.document.write(html);
-  win.document.close();
-  win.onload = () => { win.focus(); win.print(); };
-}
-
-// Cetak DETAIL satu tiket (dipanggil dari modal detail)
-async function printSingleTicketPDF(id) {
-  let t = null;
-  if (window.fbGetTicketFull) t = await window.fbGetTicketFull(id);
-  if (!t) {
-    const DB = loadDB();
-    t = DB.tickets.find(x => x.id === id);
-    if (t) t = { ...t, photos: [], followUpPhotos: [] };
-  }
-  if (!t) return alert('Data tiket tidak ditemukan.');
-
-  const now = new Date().toLocaleString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  const tglLapor = _fmtDate(t.date);
-  const tglProses = t.processDate ? _fmtDate(t.processDate) : '-';
-  const tglSelesai = t.completeDate ? _fmtDate(t.completeDate) : '-';
-  const { processNotes, completePhotos, processPhotos } = resolveTicketProgressData(t);
-
-  const photosHTML = t.photos && t.photos.length > 0
-    ? `<div class="section-label" style="display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg> Foto Laporan</div>
-       <div class="photo-grid">${t.photos.map(p => `<img src="${p}" class="photo">`).join('')}</div>`
-    : '';
-
-  const processPhotosHTML = processPhotos && processPhotos.length > 0
-    ? `<div class="section-label" style="color:#2e7d32;display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2e7d32" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg> Foto Tindak Lanjut</div>
-       <div class="photo-grid">${processPhotos.map(p => `<img src="${p}" class="photo">`).join('')}</div>`
-    : '';
-
-  const completePhotosHTML = completePhotos && completePhotos.length > 0
-    ? `<div class="section-label" style="color:#2e7d32;display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2e7d32" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg> Foto Penyelesaian</div>
-       <div class="photo-grid">${completePhotos.map(p => `<img src="${p}" class="photo">`).join('')}</div>`
-    : '';
-
-  const prosesBlock = (t.status === 'Dalam Proses' || t.status === 'Selesai') ? `
-    <div class="block orange">
-      <div class="block-title" style="color:#f57c00;display:flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f57c00" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6M4.22 4.22l4.24 4.24m5.08 0l4.24-4.24M1 12h6m6 0h6m-17.78 7.78l4.24-4.24m5.08 0l4.24 4.24"/></svg> Dalam Proses</div>
-      <div class="row-2col">
-        <div><div class="lbl">Tanggal Diproses</div><div class="val">${tglProses}</div></div>
-        <div><div class="lbl">Catatan Tindak Lanjut</div><div class="val">${processNotes || '(Belum ada catatan)'}</div></div>
-      </div>
-      ${processPhotosHTML}
-    </div>` : '';
-
-  const selesaiBlock = t.status === 'Selesai' ? `
-    <div class="block green">
-      <div class="block-title" style="color:#2e7d32;display:flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2e7d32" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Selesai</div>
-      <div class="lbl">Tanggal Selesai</div>
-      <div class="val">${tglSelesai}</div>
-      ${completePhotosHTML}
-    </div>` : '';
-
-  const html = `<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8">
-  <title>Detail Laporan ${t.id}</title>
-  <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; font-size:12px; color:#222; background:#fff; padding:24px 32px; }
-    .header { display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #1a73e8; padding-bottom:12px; margin-bottom:16px; }
-    .header-left .app-name { font-size:22px; font-weight:800; color:#1a73e8; }
-    .header-left .app-sub { font-size:11px; color:#555; margin-top:2px; }
-    .header-right { text-align:right; font-size:11px; color:#555; }
-    .ticket-id { font-size:18px; font-weight:800; color:#1a73e8; font-family:monospace; margin-bottom:4px; }
-    .status-badge { display:inline-block; padding:3px 14px; border-radius:20px; font-size:12px; font-weight:700; background:${_statusBg(t.status)}; color:${_statusColor(t.status)}; margin-bottom:14px; }
-    .block { border-radius:10px; padding:14px 16px; margin-bottom:14px; }
-    .block.blue { background:#e8f0fe; border:2px solid #1a73e8; }
-    .block.orange { background:#fff3e0; border:2px solid #ffb74d; }
-    .block.green { background:#e8f5e9; border:2px solid #81c784; }
-    .block-title { font-size:11px; font-weight:800; text-transform:uppercase; margin-bottom:10px; }
-    .row-2col { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
-    .row-4col { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:10px; margin-bottom:10px; }
-    .inner { background:#fff; border-radius:6px; padding:10px; }
-    .lbl { font-size:10px; color:#777; margin-bottom:3px; }
-    .val { font-size:12px; font-weight:600; line-height:1.5; }
-    .section-label { font-size:11px; font-weight:700; margin-bottom:6px; margin-top:8px; color:#555; }
-    .photo-grid { display:flex; gap:8px; margin-bottom:8px; }
-    .photo { width:100px; height:100px; object-fit:cover; border-radius:6px; border:1px solid #ddd; }
-    .footer { margin-top:20px; border-top:1px solid #ddd; padding-top:10px; font-size:10px; color:#777; display:flex; justify-content:space-between; }
-    @media print {
-      body { padding:12px 18px; }
-      @page { margin:1cm; size:A4 portrait; }
-    }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div class="header-left">
-      <div class="app-name"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> SiLapor</div>
-      <div class="app-sub">Sistem Laporan Sekolah</div>
-    </div>
-    <div class="header-right">
-      <div>Dicetak: ${now}</div>
-      <div>Suku Dinas Pendidikan Jakarta Timur I</div>
-    </div>
-  </div>
-
-  <div class="ticket-id">${t.id}</div>
-  <span class="status-badge">${_statusLabel(t.status)}</span>
-
-  <div class="block blue">
-    <div class="block-title" style="color:#1a73e8;display:flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="2"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Laporan Awal — Dilaporkan: ${tglLapor}</div>
-    <div class="inner" style="margin-bottom:10px">
-      <div class="lbl">Topik</div>
-      <div class="val">${t.topic}</div>
-    </div>
-    <div class="inner" style="margin-bottom:10px">
-      <div class="lbl">Deskripsi</div>
-      <div class="val" style="font-weight:400;line-height:1.7">${t.desc}</div>
-    </div>
-    <div class="row-2col">
-      <div class="inner">
-        <div class="lbl">Pelapor</div>
-        <div class="val">${t.reporter}</div>
-        <div style="font-size:11px;color:#777;margin-top:2px">${t.wa || ''}</div>
-      </div>
-      <div class="inner">
-        <div class="lbl">Sekolah</div>
-        <div class="val">${t.schoolName}</div>
-        <div style="font-size:11px;color:#777;margin-top:2px">NPSN: ${t.schoolId}</div>
-      </div>
-    </div>
-    ${photosHTML}
-  </div>
-
-  ${prosesBlock}
-  ${selesaiBlock}
-
-  <div class="footer">
-    <span>© 2026 SiLapor — Penata Kelola Sistem dan Teknologi Informasi, Suku Dinas Pendidikan Jakarta Timur I</span>
-    <span>ID: ${t.id}</span>
-  </div>
-</body>
-</html>`;
-
-  const win = window.open('', '_blank');
-  if (!win) return alert('Pop-up diblokir browser. Izinkan pop-up untuk fitur cetak.');
-  win.document.write(html);
-  win.document.close();
-  win.onload = () => { win.focus(); win.print(); };
-}
-
-// ====================== LIGHTBOX FOTO ======================
-function openPhotoLightbox(src) {
-  document.getElementById('photoLightboxImg').src = src;
-  document.getElementById('photoLightboxModal').classList.add('show');
-}
-function closePhotoLightbox() {
-  document.getElementById('photoLightboxModal').classList.remove('show');
-  document.getElementById('photoLightboxImg').src = '';
-}
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') closePhotoLightbox();
-});
-
-// ====================== MODAL HELPERS ======================
-function openModal(id) { document.getElementById(id).classList.add('show') }
-function closeModal(id) { document.getElementById(id).classList.remove('show') }
-document.querySelectorAll('.modal-overlay').forEach(m => {
-  m.addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show') });
-});
-
-// ====================== ALERT ======================
-function showAlert(elId, type, msg) {
-  const el = document.getElementById(elId);
-  if (!el) return;
-  el.innerHTML = `<div class="alert alert-${type}"><div class="alert-icon">${type === 'success' ? SVGIcons.check : type === 'danger' ? SVGIcons.x : SVGIcons.info}</div><div>${msg}</div></div>`;
-  const delay = type === 'success' ? 8000 : 12000;
-  setTimeout(() => { el.innerHTML = ''; }, delay);
-}
-
-// ====================== FOLLOW-UP PHOTO UPLOAD ======================
-function handleFollowUpPhotos(inp) {
-  const files = Array.from(inp.files).slice(0, 3);
-  if (files.length === 0) return;
-  ['followUpPhotoInput', 'followUpPhotoInputCamera', 'followUpPhotoInputGallery'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el && el !== inp) el.value = '';
-  });
-  const prev = document.getElementById('followUpPreview');
-  if (!prev) return;
-  prev.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:10px;color:var(--text-3);font-size:13px">Mengompresi foto...</div>';
-
-  compressImages(files, 100).then(compressedDataUrls => {
-    followUpPhotoFiles = compressedDataUrls;
-    prev.innerHTML = '';
-    compressedDataUrls.forEach(dataUrl => {
-      const img = document.createElement('img');
-      img.style.cssText = 'width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid var(--border)';
-      img.src = dataUrl;
-      prev.appendChild(img);
-    });
-  }).catch(() => {
-    prev.innerHTML = '<div style="grid-column:1/-1;color:var(--danger);font-size:13px;display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Gagal memproses foto. Coba lagi.</div>';
-  });
-}
-
-// ====================== TRACKING ======================
-function _setLupaTiketBtnVisible(visible) {
-  const wrap = document.getElementById('lupaTiketBtnWrap');
-  if (wrap) wrap.style.display = visible ? '' : 'none';
-}
-
-function resetTracking() {
-  const trackInput = document.getElementById('trackInput');
-  const trackResult = document.getElementById('trackResult');
-  if (trackInput) trackInput.value = '';
-  if (trackResult) trackResult.innerHTML = '';
-  _setLupaTiketBtnVisible(true);
-}
-
-async function trackReport() {
-  const id = document.getElementById('trackInput').value.trim().toUpperCase();
-  const el = document.getElementById('trackResult');
-  if (!id) { el.innerHTML = '<div class="alert alert-warning"><div class="alert-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div>Masukkan nomor tiket terlebih dahulu.</div></div>'; _setLupaTiketBtnVisible(true); return; }
-  el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-3)">Mencari laporan...</div>';
-
-  let t = null;
-  if (window.fbGetTicketFull) t = await window.fbGetTicketFull(id);
-  if (!t) {
-    const DB = loadDB();
-    const cached = DB.tickets.find(x => x.id === id);
-    if (cached) t = { ...cached, photos: [], followUpPhotos: [] };
-  }
-  if (!t) { el.innerHTML = `<div class="alert alert-danger"><div class="alert-icon">${SVGIcons.x}</div><div>Nomor tiket <strong>${id}</strong> tidak ditemukan.</div></div>`; _setLupaTiketBtnVisible(true); return; }
-  _setLupaTiketBtnVisible(false);
-
-  const fmtDateTime = iso => iso ? new Date(iso).toLocaleString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : null;
-  const date        = fmtDateTime(t.date);
-  const processDate  = fmtDateTime(t.processDate);
-  const completeDate = fmtDateTime(t.completeDate);
-  const { processNotes, completeNotes, processPhotos, completePhotos } = resolveTicketProgressData(t);
-
-  const statusClass = t.status === 'Baru' ? 'badge-new' : t.status === 'Dalam Proses' ? 'badge-process' : 'badge-done';
-  const statusIcon  = t.status === 'Baru' ? '<span style="font-size:11px;font-weight:bold;color:var(--primary)">NEW</span>' : t.status === 'Dalam Proses' ? SVGIcons.gear : SVGIcons.check;
-
-  // Steps status (tanpa sub-label waktu agar tidak duplikatif dengan timeline)
-  const steps = [
-    { label: 'Laporan Dikirim',  done: true },
-    { label: 'Diterima Sekolah', done: t.status !== 'Baru' },
-    { label: 'Dalam Proses',     done: t.status === 'Dalam Proses' || t.status === 'Selesai' },
-    { label: 'Selesai',          done: t.status === 'Selesai' }
-  ];
-
-  const reportPhotosHTML = t.photos && t.photos.length > 0 ? `
-    <div style="margin-top:12px">
-      <div style="font-size:12px;color:var(--text-3);margin-bottom:6px;font-weight:600;display:flex;align-items:center;gap:5px">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
-        Foto Laporan (${t.photos.length})
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-        ${t.photos.map(p => `<img src="${p}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid var(--border);cursor:pointer" onclick="openPhotoLightbox(this.src)">`).join('')}
-      </div>
-    </div>` : '';
-
-  const processPhotosHTML = processPhotos && processPhotos.length > 0 ? `
-    <div style="margin-top:12px">
-      <div style="font-size:12px;color:var(--text-3);margin-bottom:6px;font-weight:600;display:flex;align-items:center;gap:5px">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
-        Foto Tindak Lanjut (${processPhotos.length})
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-        ${processPhotos.map(p => `<img src="${p}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid var(--border);cursor:pointer" onclick="openPhotoLightbox(this.src)">`).join('')}
-      </div>
-    </div>` : '';
-
-  const completePhotosHTML = completePhotos && completePhotos.length > 0 ? `
-    <div style="margin-top:12px">
-      <div style="font-size:12px;color:var(--text-3);margin-bottom:6px;font-weight:600;display:flex;align-items:center;gap:5px">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
-        Foto Penyelesaian (${completePhotos.length})
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-        ${completePhotos.map(p => `<img src="${p}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid var(--border);cursor:pointer" onclick="openPhotoLightbox(this.src)">`).join('')}
-      </div>
-    </div>` : '';
-
-  const reportHistoryBlock = `
-    <div style="background:var(--primary-pale);border:2px solid var(--primary);border-radius:12px;padding:16px;margin-bottom:12px">
-      <div style="font-size:12px;color:var(--primary);font-weight:700;margin-bottom:8px;text-transform:uppercase;display:flex;align-items:center;gap:5px">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
-        Laporan Awal
-      </div>
-      <div style="font-size:11px;color:var(--text-3);margin-bottom:6px">Dilaporkan: ${date}</div>
-      <div style="background:#fff;border-radius:8px;padding:12px;margin-bottom:10px">
-        <div style="font-size:12px;color:var(--text-3);margin-bottom:4px">Topik</div>
-        <div style="font-weight:600;font-size:14px;word-break:break-word;overflow-wrap:anywhere">${t.topic}</div>
-      </div>
-      <div style="background:#fff;border-radius:8px;padding:12px;margin-bottom:10px">
-        <div style="font-size:12px;color:var(--text-3);margin-bottom:4px">Deskripsi</div>
-        <div style="line-height:1.6;font-size:13px;word-break:break-word;overflow-wrap:anywhere;white-space:pre-wrap">${t.desc || '(Tidak ada deskripsi)'}</div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div style="background:#fff;border-radius:8px;padding:10px;min-width:0">
-          <div style="font-size:11px;color:var(--text-3);margin-bottom:3px">Pelapor</div>
-          <div style="font-weight:600;font-size:13px;word-break:break-word;overflow-wrap:anywhere">${t.reporter || '-'}</div>
-          <div style="font-size:11px;color:var(--text-2);word-break:break-all">${t.wa || '-'}</div>
-        </div>
-        <div style="background:#fff;border-radius:8px;padding:10px;min-width:0">
-          <div style="font-size:11px;color:var(--text-3);margin-bottom:3px">Sekolah</div>
-          <div style="font-weight:600;font-size:13px;word-break:break-word;overflow-wrap:anywhere">${t.schoolName}</div>
-          <div style="font-size:11px;color:var(--text-2)">NPSN: ${t.schoolId}</div>
-        </div>
-      </div>
-      ${reportPhotosHTML}
-    </div>`;
-
-  const processHistoryBlock = (t.status === 'Dalam Proses' || t.status === 'Selesai') ? `
-    <div style="background:#fff3e0;border:2px solid #ffb74d;border-radius:12px;padding:16px;margin-bottom:12px">
-      <div style="font-size:12px;color:#ff8c00;font-weight:700;margin-bottom:8px;text-transform:uppercase;display:flex;align-items:center;gap:5px">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ff8c00" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6M4.22 4.22l4.24 4.24m5.08 0l4.24-4.24M1 12h6m6 0h6m-17.78 7.78l4.24-4.24m5.08 0l4.24 4.24"/></svg>
-        Dalam Proses
-      </div>
-      <div style="font-size:11px;color:var(--text-3);margin-bottom:6px">Status Diubah: ${processDate || '—'}</div>
-      <div style="background:#fff;border-radius:8px;padding:12px;margin-bottom:10px">
-        <div style="font-size:12px;color:var(--text-3);margin-bottom:4px">Catatan Tindak Lanjut</div>
-        <div style="line-height:1.6;font-size:13px;color:var(--text);word-break:break-word;overflow-wrap:anywhere">${processNotes || '(Belum ada catatan)'}</div>
-      </div>
-      ${processPhotosHTML}
-    </div>` : '';
-
-  const completeHistoryBlock = t.status === 'Selesai' ? `
-    <div style="background:var(--success-pale);border:2px solid var(--success);border-radius:12px;padding:16px;margin-bottom:12px">
-      <div style="font-size:12px;color:var(--success);font-weight:700;margin-bottom:8px;text-transform:uppercase;display:flex;align-items:center;gap:5px">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-        Selesai
-      </div>
-      <div style="font-size:11px;color:var(--text-3);margin-bottom:6px">Selesai: ${completeDate || '—'}</div>
-      <div style="background:#fff;border-radius:8px;padding:12px;margin-bottom:10px;border:1px solid #a9dfbf">
-        <div style="font-size:12px;color:var(--success);margin-bottom:4px;font-weight:600">Laporan ini telah selesai ditangani oleh pihak sekolah.</div>
-        <div style="line-height:1.6;font-size:13px;color:var(--text);word-break:break-word;overflow-wrap:anywhere;white-space:pre-wrap">${completeNotes || '(Tidak ada catatan penyelesaian.)'}</div>
-      </div>
-      ${completePhotosHTML}
-    </div>` : '';
-
-  // Timeline blok waktu — hanya tampil jika status sudah melewati "Baru"
-  const timelineHTML = (t.status === 'Dalam Proses' || t.status === 'Selesai') ? `
-    <div style="background:#fff;border-radius:8px;padding:12px;margin-bottom:10px">
-      <div style="font-size:11px;color:var(--text-3);font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:5px">
-        ${SVGIcons.clock} Riwayat Waktu Penanganan
-      </div>
-      <div style="display:flex;flex-direction:column;gap:0">
-
-        <!-- Laporan Dikirim -->
-        <div style="display:flex;gap:12px;align-items:flex-start">
-          <div style="display:flex;flex-direction:column;align-items:center;width:20px;flex-shrink:0">
-            <div style="width:16px;height:16px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-              <svg width="8" height="8" viewBox="0 0 24 24" fill="white"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-            </div>
-            <div style="width:2px;flex:1;background:var(--border);min-height:20px;margin-top:2px"></div>
-          </div>
-          <div style="padding-bottom:14px;min-width:0">
-            <div style="font-size:12px;font-weight:600;color:var(--primary)">Laporan Dikirim</div>
-            <div style="font-size:11px;color:var(--text-3);margin-top:2px">${date}</div>
-          </div>
-        </div>
-
-        <!-- Dalam Proses -->
-        <div style="display:flex;gap:12px;align-items:flex-start">
-          <div style="display:flex;flex-direction:column;align-items:center;width:20px;flex-shrink:0">
-            <div style="width:16px;height:16px;border-radius:50%;background:#f39c12;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v4m0 14v4M4.22 4.22l2.83 2.83m9.9 9.9l2.83 2.83M1 12h4m14 0h4M4.22 19.78l2.83-2.83m9.9-9.9l2.83-2.83"/></svg>
-            </div>
-            ${t.status === 'Selesai' ? `<div style="width:2px;flex:1;background:var(--border);min-height:20px;margin-top:2px"></div>` : ''}
-          </div>
-          <div style="padding-bottom:${t.status === 'Selesai' ? '14' : '0'}px;min-width:0">
-            <div style="font-size:12px;font-weight:600;color:#f39c12">Dalam Proses</div>
-            <div style="font-size:11px;color:var(--text-3);margin-top:2px">${processDate || '—'}</div>
-          </div>
-        </div>
-
-        ${t.status === 'Selesai' ? `
-        <!-- Selesai -->
-        <div style="display:flex;gap:12px;align-items:flex-start">
-          <div style="display:flex;flex-direction:column;align-items:center;width:20px;flex-shrink:0">
-            <div style="width:16px;height:16px;border-radius:50%;background:var(--success);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-            </div>
-          </div>
-          <div style="min-width:0">
-            <div style="font-size:12px;font-weight:600;color:var(--success)">Selesai</div>
-            <div style="font-size:11px;color:var(--text-3);margin-top:2px">${completeDate || '—'}</div>
-          </div>
-        </div>` : ''}
-
-      </div>
-    </div>` : '';
-
-  el.innerHTML = `
-    <div style="background:var(--primary-pale);border:1px solid #aed6f1;border-radius:12px;padding:16px;margin-top:8px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div>
-          <div style="font-size:11px;color:var(--text-3)">Nomor Tiket</div>
-          <div style="font-size:18px;font-weight:700;color:var(--primary);font-family:'Sora',sans-serif">${t.id}</div>
-        </div>
-        <span class="badge ${statusClass}" style="font-size:13px;padding:6px 14px">${t.status}</span>
-      </div>
-      <div class="steps" style="margin-bottom:12px">
-        ${steps.map(s => `
-          <div class="step ${s.done ? 'done' : ''}" style="display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3px;padding:10px 8px;min-height:64px">
-            <span class="step-num">${s.done ? '✓' : ''}</span>
-            <span style="font-size:11px;font-weight:600;line-height:1.25;text-align:center">${s.label}</span>
-          </div>`).join('')}
-      </div>
-      ${t.incidentDate ? `<div style="background:#fff7f4;border:1px solid #f5c2b7;border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px;color:var(--danger);display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Tanggal kejadian: <strong>${new Date(t.incidentDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</strong></div>` : ''}
-      ${timelineHTML}
-      ${reportHistoryBlock}
-      ${processHistoryBlock}
-      ${completeHistoryBlock}
-      ${t.status === 'Baru' ? '<div style="background:var(--warning-pale);border-radius:8px;padding:12px;border:1px solid #f9e79f;font-size:13px;color:var(--warning)">Laporan Anda sedang menunggu tindak lanjut dari pihak sekolah.</div>' : ''}
-    </div>`;
-}
-
-// ====================== ADMIN CHANGE PASSWORD ======================
-function openAdminChangePass() {
-  document.getElementById('adminChangePassAlert').innerHTML = '';
-  document.getElementById('adminOldPass').value = '';
-  document.getElementById('adminNewPass1').value = '';
-  document.getElementById('adminNewPass2').value = '';
-  openModal('adminChangePassModal');
-}
-
-async function saveAdminPassword() {
-  const old = document.getElementById('adminOldPass').value;
-  const p1 = document.getElementById('adminNewPass1').value;
-  const p2 = document.getElementById('adminNewPass2').value;
-  const DB = loadDB();
-  if (!(await verifyPassword(old, DB.admin))) return showAlert('adminChangePassAlert', 'danger', 'Password lama tidak sesuai.');
-  if (p1.length < 8) return showAlert('adminChangePassAlert', 'danger', 'Password baru minimal 8 karakter.');
-  if (p1 !== p2) return showAlert('adminChangePassAlert', 'danger', 'Konfirmasi password tidak cocok.');
-  const hash = await hashPassword(p1);
-  DB.admin.passwordHash = hash;
-  if (window.fbSaveAdmin) await window.fbSaveAdmin({ username: DB.admin.username, passwordHash: hash });
-  closeModal('adminChangePassModal');
-  alert('Password administrator berhasil diperbarui!');
-}
-
-// ====================== TICKET SUCCESS MODAL ======================
-function showTicketSuccessModal(ticketId) {
-  // Buat modal jika belum ada
-  if (!document.getElementById('ticketSuccessModal')) {
-    const modal = document.createElement('div');
-    modal.id = 'ticketSuccessModal';
-    modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;padding:16px';
-    modal.innerHTML = `
-      <div style="background:#fff;border-radius:16px;padding:28px 24px;max-width:360px;width:100%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.18)">
-        <div style="margin-bottom:8px;display:flex;justify-content:center">
-          <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="36" cy="36" r="34" fill="#e8f5e9" stroke="#27ae60" stroke-width="3"/>
-            <polyline points="20,37 31,48 52,24" fill="none" stroke="#27ae60" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </div>
-        <div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:6px">Laporan Berhasil Dikirim!</div>
-        <div style="font-size:13px;color:var(--text-3);margin-bottom:20px">Simpan nomor tiket ini untuk memantau status laporan Anda.</div>
-        <div style="background:var(--primary-pale,#eaf4fb);border:1.5px dashed var(--primary,#2980b9);border-radius:10px;padding:14px 16px;margin-bottom:20px">
-          <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;font-weight:600;letter-spacing:.5px">NOMOR TIKET</div>
-          <div id="successTicketId" style="font-size:22px;font-weight:800;color:var(--primary,#2980b9);letter-spacing:2px;font-family:'Sora',monospace"></div>
-        </div>
-        <button id="copyTicketBtn" onclick="copyTicketId()" style="width:100%;padding:12px;background:var(--primary,#2980b9);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px">
-          ${SVGIcons.clipboard} Salin Nomor Tiket
-        </button>
-        <button onclick="closeTicketSuccessModal()" style="width:100%;padding:11px;background:transparent;color:var(--text-3);border:1.5px solid var(--border,#ddd);border-radius:8px;font-size:14px;cursor:pointer">Tutup</button>
-      </div>`;
-    document.body.appendChild(modal);
-  }
-
-  document.getElementById('successTicketId').textContent = ticketId;
-  const btn = document.getElementById('copyTicketBtn');
-  btn.innerHTML = SVGIcons.clipboard + ' Salin Nomor Tiket';
-  btn.style.background = 'var(--primary,#2980b9)';
-  document.getElementById('ticketSuccessModal').style.display = 'flex';
-}
-
-function closeTicketSuccessModal() {
-  const modal = document.getElementById('ticketSuccessModal');
-  if (modal) modal.style.display = 'none';
-}
-
-function copyTicketId() {
-  const id = document.getElementById('successTicketId').textContent;
-  if (!id) return;
-  navigator.clipboard.writeText(id).then(() => {
-    const btn = document.getElementById('copyTicketBtn');
-    btn.innerHTML = SVGIcons.check + ' Tersalin!';
-    btn.style.background = 'var(--success,#27ae60)';
-    setTimeout(() => {
-      btn.innerHTML = SVGIcons.clipboard + ' Salin Nomor Tiket';
-      btn.style.background = 'var(--primary,#2980b9)';
-    }, 2000);
-  }).catch(() => {
-    // Fallback untuk browser lama
-    const tmp = document.createElement('input');
-    tmp.value = id;
-    document.body.appendChild(tmp);
-    tmp.select();
-    document.execCommand('copy');
-    document.body.removeChild(tmp);
-    const btn = document.getElementById('copyTicketBtn');
-    btn.innerHTML = SVGIcons.check + ' Tersalin!';
-    btn.style.background = 'var(--success,#27ae60)';
-    setTimeout(() => {
-      btn.innerHTML = SVGIcons.clipboard + ' Salin Nomor Tiket';
-      btn.style.background = 'var(--primary,#2980b9)';
-    }, 2000);
-  });
-}
-
-// ====================== INIT ======================
-window.restoreLoginState = restoreLoginState;
-window.renderSchoolTickets = typeof renderSchoolTickets !== 'undefined' ? renderSchoolTickets : undefined;
-window.updateSchoolStats = typeof updateSchoolStats !== 'undefined' ? updateSchoolStats : undefined;
-window.updateAdminStats = typeof updateAdminStats !== 'undefined' ? updateAdminStats : undefined;
-window.renderAdminRecent = typeof renderAdminRecent !== 'undefined' ? renderAdminRecent : undefined;
-window.renderAdminTickets = typeof renderAdminTickets !== 'undefined' ? renderAdminTickets : undefined;
-window.renderSchoolTable = typeof renderSchoolTable !== 'undefined' ? renderSchoolTable : undefined;
-window.renderUserTable = typeof renderUserTable !== 'undefined' ? renderUserTable : undefined;
-window.currentUser = currentUser;
-removeLegacySchoolRefreshButton();
-genCaptcha();
-document.getElementById('captchaAns').addEventListener('keyup', function(e) {
-  if (e.key === 'Enter') checkCaptchaAuto();
-});
-
-// ====================== ENTER KEY SHORTCUTS ======================
-(function attachEnterListeners() {
-  function onEnter(ids, fn) {
-    ids.forEach(function(id) {
-      var el = document.getElementById(id);
-      if (el) el.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') { e.preventDefault(); fn(); }
-      });
-    });
-  }
-
-  // Login sekolah: NPSN & password
-  onEnter(['sl_npsn', 'sl_pass'], schoolLogin);
-
-  // Login admin: username & password
-  onEnter(['al_user', 'al_pass'], adminLogin);
-
-  // Lacak tiket
-  onEnter(['trackInput'], trackReport);
-})();
-
-// ====================== LUPA NOMOR TIKET ======================
-let ltCaptchaA = 0, ltCaptchaB = 0, ltCaptchaVerified = false;
-
-function openLupaTiket() {
-  resetLupaTiket();
-  genLupaTiketCaptcha();
-  populateLupaTiketSchools();
-  document.getElementById('lupaTiketModal').classList.add('show');
-}
-
-function closeLupaTiket() {
-  document.getElementById('lupaTiketModal').classList.remove('show');
-}
-
-function resetLupaTiket() {
-  ltCaptchaVerified = false;
-  document.getElementById('lt_wa').value = '';
-  document.getElementById('lt_email').value = '';
-  document.getElementById('lt_schoolSearch').value = '';
-  document.getElementById('lt_school_id').value = '';
-  document.getElementById('lt_school_name').value = '';
-  document.getElementById('lt_schoolDropdown').classList.remove('show');
-  document.getElementById('lt_captchaAns').value = '';
-  document.getElementById('lt_captchaStatus').textContent = '';
-  document.getElementById('lt_captchaAns').style.borderColor = 'var(--border)';
-  document.getElementById('lupaTiketAlert').innerHTML = '';
-  document.getElementById('lupaTiketStep1').style.display = '';
-  document.getElementById('lupaTiketStep2').style.display = 'none';
-  document.getElementById('lupaTiketResults').innerHTML = '';
-  genLupaTiketCaptcha();
-}
-
-function genLupaTiketCaptcha() {
-  ltCaptchaA = Math.floor(Math.random() * 10) + 1;
-  ltCaptchaB = Math.floor(Math.random() * 10) + 1;
-  const q = document.getElementById('lt_captchaQ');
-  if (q) q.textContent = ltCaptchaA + ' + ' + ltCaptchaB;
-  const ans = document.getElementById('lt_captchaAns');
-  if (ans) { ans.value = ''; ans.style.borderColor = 'var(--border)'; }
-  ltCaptchaVerified = false;
-  const s = document.getElementById('lt_captchaStatus');
-  if (s) s.textContent = '';
-}
-
-function checkLupaTiketCaptcha() {
-  const ans = parseInt(document.getElementById('lt_captchaAns').value);
-  const statusEl = document.getElementById('lt_captchaStatus');
-  const ansEl = document.getElementById('lt_captchaAns');
-  if (ans === ltCaptchaA + ltCaptchaB) {
-    ltCaptchaVerified = true;
-    statusEl.innerHTML = SVGIcons.check + ' Verifikasi berhasil!';
-    statusEl.style.color = 'var(--success)';
-    ansEl.style.borderColor = 'var(--success)';
-  } else if (document.getElementById('lt_captchaAns').value.length > 0) {
-    ltCaptchaVerified = false;
-    statusEl.innerHTML = SVGIcons.x + ' Jawaban salah';
-    statusEl.style.color = 'var(--danger)';
-    ansEl.style.borderColor = 'var(--danger)';
-  } else {
-    ltCaptchaVerified = false;
-    statusEl.textContent = '';
-    ansEl.style.borderColor = 'var(--border)';
-  }
-}
-
-function filterLupaTiketWA(el) {
-  let val = el.value;
-  // Izinkan '+' hanya di posisi pertama (untuk format +62)
-  if (val.startsWith('+')) {
-    el.value = '+' + val.slice(1).replace(/[^0-9]/g, '');
-  } else {
-    el.value = val.replace(/[^0-9]/g, '');
-  }
-}
-
-function populateLupaTiketSchools() {
-  filterLupaTiketSchools();
-}
-
-function filterLupaTiketSchools() {
-  const q = (document.getElementById('lt_schoolSearch').value || '').toLowerCase();
-  const dd = document.getElementById('lt_schoolDropdown');
-  const DB = loadDB();
-  const matches = q.length === 0
-    ? DB.schools.slice(0, 50)
-    : DB.schools.filter(s => s.name.toLowerCase().includes(q) || s.id.includes(q)).slice(0, 50);
-
-  dd.innerHTML = '';
-  if (matches.length === 0) {
-    dd.innerHTML = '<div class="dropdown-item" style="color:var(--text-3)">Sekolah tidak ditemukan</div>';
-  } else {
-    matches.forEach(s => {
-      const d = document.createElement('div');
-      d.className = 'dropdown-item';
-      d.innerHTML = `<strong>${s.name}</strong> <span style="color:var(--text-3);font-size:11px">${s.level} · ${s.city}</span>`;
-      d.onclick = () => {
-        document.getElementById('lt_schoolSearch').value = s.name;
-        document.getElementById('lt_school_id').value = s.id;
-        document.getElementById('lt_school_name').value = s.name;
-        dd.classList.remove('show');
+    
+    if (matchedKey) {
+      // Update existing borrow with return info
+      grouped[matchedKey].tanggalKembali = h.date;
+      grouped[matchedKey].jamKembali = h.time || "";
+      grouped[matchedKey].status = "Dikembalikan";
+      grouped[matchedKey].returnSignPhoto = h.signPhoto;
+    } else {
+      // Create standalone return entry
+      const uniqueKey = crypto.randomUUID ? crypto.randomUUID() : 
+        'uuid-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now();
+      
+      grouped[uniqueKey] = {
+        nama: h.borrower || h.by || '',
+        barang: h.itemName,
+        tanggalPinjam: "",
+        jamPinjam: "",
+        tanggalPerkiraan: "",
+        tanggalKembali: h.date,
+        jamKembali: h.time || "",
+        status: "Dikembalikan",
+        borrowSignPhoto: null,
+        returnSignPhoto: h.signPhoto
       };
-      dd.appendChild(d);
-    });
-  }
-  dd.classList.add('show');
-}
-
-function showLupaTiketDropdown() {
-  filterLupaTiketSchools();
-}
-
-document.addEventListener('click', function(e) {
-  if (!e.target.closest('#lupaTiketModal .search-select')) {
-    const dd = document.getElementById('lt_schoolDropdown');
-    if (dd) dd.classList.remove('show');
+    }
   }
 });
 
-function showLupaTiketAlert(type, msg) {
-  const el = document.getElementById('lupaTiketAlert');
-  el.innerHTML = `<div class="alert alert-${type}" style="margin-bottom:12px">
-    <div class="alert-icon">${type === 'danger' ? SVGIcons.x : SVGIcons.info}</div>
-    <div>${msg}</div>
-  </div>`;
+    showProgress("Mengambil gambar tanda tangan...", 30);
+
+    // Collect unique signature photo IDs
+    const signatureIds = new Set();
+    Object.values(grouped).forEach(item => {
+      if (item.borrowSignPhoto) signatureIds.add(item.borrowSignPhoto);
+      if (item.returnSignPhoto) signatureIds.add(item.returnSignPhoto);
+    });
+
+    const signatureDataUrls = {};
+    
+    if (signatureIds.size > 0) {
+      const idArray = Array.from(signatureIds);
+      const blobs = await fetchBlobsInBatches(idArray, 5);
+      
+      for (let i = 0; i < idArray.length; i++) {
+        if (blobs[i]) {
+          // Convert blob to data URL for PDF
+          const dataUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.readAsDataURL(blobs[i]);
+          });
+          signatureDataUrls[idArray[i]] = dataUrl;
+        }
+        showProgress(`Memproses tanda tangan ${i + 1}/${idArray.length}...`, 30 + (i / idArray.length) * 40);
+      }
+    }
+
+    showProgress("Membuat PDF...", 80);
+
+    const { jsPDF } = window.jspdf;
+    // Create PDF in landscape mode
+    const doc = new jsPDF('landscape', 'mm', 'a4');
+    
+    // Page dimensions for landscape A4
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    // Multi-line title - centered
+    doc.setFontSize(16);
+    doc.setFont(undefined, 'bold');
+    
+    // Title line 1: "Riwayat Peminjaman Barang"
+    const title1 = "Riwayat Peminjaman Barang";
+    const title1Width = doc.getTextWidth(title1);
+    const title1X = (pageWidth - title1Width) / 2;
+    doc.text(title1, title1X, 16);
+    
+    // Title line 2: School name
+    doc.setFontSize(16);
+    const title2Width = doc.getTextWidth(schoolName);
+    const title2X = (pageWidth - title2Width) / 2;
+    doc.text(schoolName, title2X, 24);
+    
+    // Title line 3: "Bulan [Month] [Year]"
+    const title3 = `Bulan ${monthName} ${year}`;
+    const title3Width = doc.getTextWidth(title3);
+    const title3X = (pageWidth - title3Width) / 2;
+    doc.text(title3, title3X, 32);
+
+    // Function to format date to dd-mm-yyyy
+    const formatDateForPDF = (dateStr) => {
+      if (!dateStr) return '';
+      try {
+        const date = new Date(dateStr);
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}-${month}-${year}`;
+      } catch (e) {
+        return dateStr; // fallback to original if parsing fails
+      }
+    };
+
+    // Prepare data for autoTable with row numbers
+    const tableRows = [];
+    const groupedValues = Object.values(grouped);
+    
+    groupedValues.forEach((item, index) => {
+      // Convert signatures to images for the table
+      const borrowSignImg = item.borrowSignPhoto && signatureDataUrls[item.borrowSignPhoto] ? 
+        { content: '', styles: { halign: 'center' } } : '';
+      const returnSignImg = item.returnSignPhoto && signatureDataUrls[item.returnSignPhoto] ? 
+        { content: '', styles: { halign: 'center' } } : '';
+
+      tableRows.push([
+        (index + 1).toString(), // Row number
+        item.nama || '',
+        item.barang || '',
+        formatDateForPDF(item.tanggalPinjam) || '', // Format date to dd-mm-yyyy
+        item.jamPinjam || '',
+        borrowSignImg,
+        formatDateForPDF(item.tanggalPerkiraan) || '', // Format date to dd-mm-yyyy
+        formatDateForPDF(item.tanggalKembali) || '', // Format date to dd-mm-yyyy
+        item.jamKembali || '',
+        returnSignImg,
+        item.status || ''
+      ]);
+    });
+
+    // Create the table with autoTable
+    doc.autoTable({
+      startY: 40, // Adjusted start position due to multi-line title
+      margin: { left: 15, right: 15 }, // 15mm margins on left and right
+      head: [[
+        'No', // Added row number column
+        'Nama Peminjam', 
+        'Nama Barang', 
+        'Tgl Pinjam', 
+        'Jam Pinjam',
+        'TTD Pinjam',
+        'Tgl Perkiraan', 
+        'Tgl Kembali', 
+        'Jam Kembali',
+        'TTD Kembali',
+        'Status'
+      ]],
+      body: tableRows,
+      theme: 'grid',
+      tableWidth: 'auto',
+      headStyles: { 
+        fillColor: 'gray', 
+        textColor: [255, 255, 255], // White text for header
+        halign: 'center',
+        fontSize: 10,
+        fontStyle: 'bold',
+        lineColor: [0, 0, 0], // Black lines for header
+        lineWidth: 0.2 // Same line width as body
+      },
+      bodyStyles: { 
+        fontSize: 10,
+        halign: 'center',
+        cellPadding: 3,
+        lineColor: [0, 0, 0], // Black lines instead of gray
+        lineWidth: 0.2, // Slightly thicker lines
+        textColor: [0, 0, 0] // Black text instead of gray
+      },
+      alternateRowStyles: { 
+        fillColor: [245, 245, 245],
+        textColor: [0, 0, 0] // Black text for alternate rows too
+      },
+      didDrawCell: function (data) {
+        // Only add signature images to body rows (not header rows)
+        if (data.section === 'body' && (data.column.index === 5 || data.column.index === 9)) { // TTD columns (shifted due to No column)
+          const rowIndex = data.row.index;
+          const item = groupedValues[rowIndex];
+          
+          if (data.column.index === 5 && item && item.borrowSignPhoto && signatureDataUrls[item.borrowSignPhoto]) {
+            // Add borrow signature
+            try {
+              const imgWidth = 18;
+              const imgHeight = 8;
+              const imgX = data.cell.x + (data.cell.width - imgWidth) / 2;
+              const imgY = data.cell.y + (data.cell.height - imgHeight) / 2;
+              
+              doc.addImage(
+                signatureDataUrls[item.borrowSignPhoto],
+                'PNG',
+                imgX,
+                imgY,
+                imgWidth,
+                imgHeight
+              );
+            } catch (e) {
+              console.warn('Failed to add borrow signature:', e);
+            }
+          }
+          
+          if (data.column.index === 9 && item && item.returnSignPhoto && signatureDataUrls[item.returnSignPhoto]) {
+            // Add return signature
+            try {
+              const imgWidth = 18;
+              const imgHeight = 8;
+              const imgX = data.cell.x + (data.cell.width - imgWidth) / 2;
+              const imgY = data.cell.y + (data.cell.height - imgHeight) / 2;
+              
+              doc.addImage(
+                signatureDataUrls[item.returnSignPhoto],
+                'PNG',
+                imgX,
+                imgY,
+                imgWidth,
+                imgHeight
+              );
+            } catch (e) {
+              console.warn('Failed to add return signature:', e);
+            }
+          }
+        }
+      }
+    });
+
+	// === Signature block (auto-adjusts position safely) ===
+	const headmasterName = el('headmasterName')?.value?.trim() || 'Nama Kepala Sekolah';
+	const headmasterNIP = el('headmasterNIP')?.value?.trim() || '';
+
+	doc.setFontSize(12);
+	const pdfPageHeight = doc.internal.pageSize.height;
+	const rightMargin = 30; // space from right edge
+	let y = doc.lastAutoTable.finalY + 30;
+
+	// If the signature would be off the page, move it to the next page
+	if (y + 60 > pdfPageHeight) {
+	doc.addPage();
+	y = 30;
 }
 
-async function submitLupaTiket() {
-  const alertEl = document.getElementById('lupaTiketAlert');
-  alertEl.innerHTML = '';
+const x = doc.internal.pageSize.width - rightMargin - 80;
 
-  const wa = document.getElementById('lt_wa').value.trim();
-  const email = document.getElementById('lt_email').value.trim().toLowerCase();
-  const schoolId = document.getElementById('lt_school_id').value.trim();
-  const schoolName = document.getElementById('lt_school_name').value.trim();
+doc.text('Mengetahui,', x, y);
+doc.text('Kepala Sekolah', x, y + 8);
+doc.text('_________________________', x, y + 40);
+doc.text(headmasterName, x, y + 50);
+if (headmasterNIP) doc.text(`NIP. ${headmasterNIP}`, x, y + 58);
 
-  // Validasi
-  if (!wa || wa.length < 9) {
-    showLupaTiketAlert('danger', 'Nomor WhatsApp tidak valid. Minimal 9 digit.');
+
+	
+    // Footer kanan bawah: timestamp generate
+    const now = new Date();
+    const hari = now.toLocaleDateString('id-ID', { weekday: 'long' });
+    const tanggal = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
+    const waktu = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const footerText = `Digenerate pada ${hari}, ${tanggal} Pukul ${waktu} WIB`;
+
+    const footerRightPadding = 15;
+
+    // Teks timestamp saja
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(90, 90, 90);
+    const textY = pageHeight - 6;
+    const textW = doc.getTextWidth(footerText);
+    doc.text(footerText, pageWidth - footerRightPadding - textW, textY);
+
+    // Save the PDF
+    const filename = `Riwayat_${selectedMonth}_dengan_tanda_tangan.pdf`;
+    doc.save(filename);
+
+    hideProgress();
+    showToast(`PDF berhasil diekspor: ${filename}`, 'success');
+
+  } catch (err) {
+    console.error('PDF Export Error:', err);
+    hideProgress();
+    showToast("Gagal mengekspor PDF: " + (err.message || 'Unknown error'), "danger");
+  }
+});
+
+/* Full backup (state + IndexedDB photos) */
+async function exportFullBackup(){
+  try{
+    const date = new Date();
+    const dd = String(date.getDate()).padStart(2,'0');
+    const mm = String(date.getMonth()+1).padStart(2,'0');
+    const yyyy = date.getFullYear();
+    const filename = `SiMISA_backup_${dd}-${mm}-${yyyy}.json`;
+
+    const ids = new Set();
+    state.items.forEach(it => { if(it.photo) ids.add(it.photo); });
+    state.history.forEach(h => { if(h.photo) ids.add(h.photo); if(h.signPhoto) ids.add(h.signPhoto); });
+    const idList = Array.from(ids);
+    const total = idList.length;
+
+    if(total === 0){
+      const backupData = { state, photos: {} };
+      downloadText(filename, JSON.stringify(backupData));
+      showToast('Backup Data Selesai', 'success');
+      return;
+    }
+
+    const blobPromises = idList.map(id => getCachedPhoto(id));
+    const blobs = await Promise.all(blobPromises);
+
+    const toDataURL = blob => new Promise(res => {
+      if(!blob){ res(null); return; }
+      const reader = new FileReader();
+      reader.onload = e => res(e.target.result);
+      reader.readAsDataURL(blob);
+    });
+    const dataUrls = await Promise.all(blobs.map(b => toDataURL(b)));
+
+    const photos = {};
+    for(let i=0;i<idList.length;i++){
+      if(dataUrls[i]) photos[idList[i]] = dataUrls[i];
+      const percent = Math.round(((i+1)/total) * 100);
+      showProgress(`Mencadangkan Foto ${i+1}/${total}`, percent);
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    const backupData = { state, photos };
+    const sizeMB = (new Blob([JSON.stringify(backupData)]).size / (1024*1024)).toFixed(2);
+    downloadText(filename, JSON.stringify(backupData));
+
+    hideProgress();
+    showToast(`Backup Data Selesai (Size: ${sizeMB} MB)`, 'success');
+  }catch(err){
+    console.error('exportFullBackup failed', err);
+    hideProgress();
+    showToast('Backup Data Gagal', 'danger');
+  }
+}
+
+async function importFullBackup(){
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'application/json';
+  inp.onchange = async e => {
+    const f = e.target.files[0];
+    if(!f) return;
+    const text = await f.text();
+    let parsed;
+    try{ parsed = JSON.parse(text); } catch(err){ 
+      showToast('File JSON Tidak Valid!', 'danger'); 
+      return; 
+    }
+    if(!parsed.state || !parsed.photos){ 
+      showToast('File Backup Tidak Valid!', 'danger'); 
+      return; 
+    }
+
+    // restore state
+    state = parsed.state;
+    save();
+
+    // restore photos to IndexedDB
+    if(!db) await openDB();
+    const tx = db.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).clear();
+    await new Promise(res => { tx.oncomplete = res; tx.onerror = ()=>res(); });
+
+    const entries = Object.entries(parsed.photos || {});
+    if(entries.length === 0){
+      clearPhotoCache();
+      await renderAll();
+      showToast('Backup Data (tanpa foto)', 'success');
+      return;
+    }
+
+    for(let i=0;i<entries.length;i++){
+      const [id, dataUrl] = entries[i];
+      const resp = await fetch(dataUrl);
+      const blob = await resp.blob();
+      await putPhoto(id, blob);
+      photoCache.set(id, blob);
+      getObjectURLFor(id, blob);
+
+      const percent = Math.round(((i+1)/entries.length) * 100);
+      showProgress(`Memulihkan Foto ${i+1}/${entries.length}`, percent);
+
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    clearPhotoCache();
+    await renderAll();
+
+    hideProgress();
+    showToast('Data Berhasil Dipulihkan', 'success');
+  };
+  inp.click();
+}
+
+/* Wire buttons to new functions (safe rebind) */
+try{
+  const exp = el('exportBtn');
+  if(exp){
+    exp.replaceWith(exp.cloneNode(true));
+    el('exportBtn').addEventListener('click', exportFullBackup);
+  }
+  const imp = el('importBtn');
+  if(imp){
+    imp.replaceWith(imp.cloneNode(true));
+    el('importBtn').addEventListener('click', importFullBackup);
+  }
+} catch(err){
+  console.error('Failed to rebind backup buttons', err);
+}
+
+if (el('manageSearch')) {
+  // keep binding to allow quick filtering
+  el('manageSearch').addEventListener('input', () => renderManage());
+}
+if (el('clearManageSearch')) {
+  el('clearManageSearch').addEventListener('click', () => {
+    el('manageSearch').value = '';
+    renderManage();
+  });
+}
+
+/* Hapus semua with safe cache cleanup */
+if(el('clearAll')) el('clearAll').addEventListener('click', ()=> {
+  showConfirm('Apakah Anda yakin ingin menghapus seluruh data?', () => {
+    localStorage.removeItem(STORAGE_KEY);
+    state = {items:[], history:[]};
+    save();
+    clearPhotoCache();
+    load();
+    renderAll();
+    showToast('Seluruh Data Berhasil Dihapus', 'danger');
+  });
+});
+
+/* Event delegation for dashboard and manage lists */
+if(el('items')) el('items').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-action]'); if(!btn) return;
+  const action = btn.dataset.action; const id = btn.dataset.id;
+  if(action==='borrow') openBorrowModal(id);
+  else if(action==='return') openReturnModal(id);
+});
+
+/* Consolidated manageList delegation: delete/edit/save-edit/cancel-edit */
+if(el('manageList')) el('manageList').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-action]'); if(!btn) return;
+  const action = btn.dataset.action; const id = btn.dataset.id;
+  const item = state.items.find(x=>x.id===id);
+  if(!item && action !== 'cancel-edit') return;
+
+  if(action==='generate-qr'){
+    openQrModal(item);
     return;
   }
-  if (!schoolId || !schoolName) {
-    showLupaTiketAlert('danger', 'Pilih nama sekolah dari daftar.');
+
+  if(action==='delete'){
+    showConfirm('Apakah Anda yakin ingin menghapus barang ini?', () => {
+      state.items = state.items.filter(x=>x.id!==id);
+      save();
+      renderManage();
+      renderStats();
+      renderDashboardList();
+      showToast('Barang dihapus','danger');
+    });
     return;
   }
-  if (!ltCaptchaVerified) {
-    showLupaTiketAlert('danger', 'Selesaikan verifikasi anti-bot terlebih dahulu.');
+
+  // Updated edit form without status field - replace the edit action in manageList event listener
+
+if(action==='edit'){
+  // render inline edit form inside the card (without status field)
+  const card = btn.closest('.card');
+  card.innerHTML = `
+    <div class="form">
+      <input class="input" id="editName" value="${escapeHtml(item.name)}" placeholder="Nama barang" />
+      <input class="input" id="editCategory" value="${escapeHtml(item.category||'')}" placeholder="Kategori" />
+      <input class="input" id="editDesc" value="${escapeHtml(item.desc||'')}" placeholder="Deskripsi" />
+      <div class="actions">
+        <button class="btn primary" data-action="save-edit" data-id="${id}">Simpan</button>
+        <button class="btn ghost" data-action="cancel-edit" data-id="${id}">Batal</button>
+      </div>
+    </div>
+  `;
+  return;
+}
+
+  if(action==='save-edit'){
+    const card = btn.closest('.card');
+    const newName = card.querySelector('#editName').value.trim();
+    if(!newName) return showToast('Nama wajib diisi', 'warning');
+    const it = state.items.find(x=>x.id===id); if(!it) return;
+    it.name = newName; it.category = card.querySelector('#editCategory').value.trim(); it.desc = card.querySelector('#editDesc').value.trim();
+    save(); renderManage(); renderStats(); renderDashboardList(); showToast('Barang diperbarui','success');
     return;
   }
 
-  // Normalisasi nomor WA: strip +62 / 62 / 0 di awal, bandingkan digit inti
-  function normalizeWA(num) {
-    let s = String(num || '').replace(/\D/g, ''); // hapus semua non-digit
-    if (s.startsWith('62')) s = s.slice(2);       // strip kode negara Indonesia
-    s = s.replace(/^0+/, '');                     // strip leading 0
-    return s;
+  if(action==='cancel-edit'){
+    renderManage();
+    return;
   }
-  const waNorm = normalizeWA(wa);
+});
 
-  // Tampilkan loading sementara fetch berjalan
-  showLupaTiketAlert('info', 'Sedang mencari tiket, mohon tunggu...');
+/* small helpers */
+function openImageModal(src){ 
+  if(!src) return;
+  const modal = document.createElement('div'); modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;z-index:9999';
+  const img = document.createElement('img'); img.loading='lazy'; img.src=src; img.style.maxWidth='92%'; img.style.maxHeight='92%'; img.style.borderRadius='10px'; modal.appendChild(img); 
+  modal.addEventListener('click', ()=> modal.remove()); 
+  document.body.appendChild(modal); 
+}
 
-  // Kumpulkan tiket: gabungkan cache lokal + hasil fetch langsung dari Firestore
-  // Fetch langsung diperlukan karena cache (window.DB.tickets) kosong saat mode publik
-  const DB = loadDB();
-  let tickets = [...(DB.tickets || [])];
+/* ── SiMERY-style notification toast ── */
+const _toastIcons = {
+  info:    { icon:'ℹ️', cls:'info' },
+  success: { icon:'✅', cls:'success' },
+  warning: { icon:'⚠️', cls:'warning' },
+  danger:  { icon:'❌', cls:'error' },
+  error:   { icon:'❌', cls:'error' },
+};
+let _toastQueue = [];
+let _toastActive = false;
 
-  if (window.fbFindTicketsByWA) {
-    try {
-      const freshTickets = await window.fbFindTicketsByWA({
-        schoolId,
-        normalizedPhone: waNorm,
-        email
-      });
-      // Merge ke tickets lokal, hindari duplikat
-      const existingIds = new Set(tickets.map(t => t.id));
-      freshTickets.forEach(t => {
-        if (!existingIds.has(t.id)) {
-          tickets.push(t);
-          existingIds.add(t.id);
+function showToast(msg, type = 'info') {
+  _toastQueue.push({ msg, type });
+  if (!_toastActive) _processToastQueue();
+}
+
+function _processToastQueue() {
+  if (_toastQueue.length === 0) { _toastActive = false; return; }
+  _toastActive = true;
+  const { msg, type } = _toastQueue.shift();
+
+  // Remove any existing toast
+  document.querySelectorAll('.notification').forEach(n => n.remove());
+
+  const cfg = _toastIcons[type] || _toastIcons.info;
+  const el = document.createElement('div');
+  el.className = 'notification ' + cfg.cls;
+  el.innerHTML = `
+    <div class="notification-content">
+      <div class="notification-icon">${cfg.icon}</div>
+      <div class="notification-text">
+        <div class="notification-title">${msg}</div>
+      </div>
+      <button class="notification-close" aria-label="Tutup">×</button>
+    </div>`;
+  document.body.appendChild(el);
+
+  const close = el.querySelector('.notification-close');
+  const dismiss = () => {
+    el.classList.add('hiding');
+    setTimeout(() => { el.remove(); setTimeout(_processToastQueue, 180); }, 240);
+  };
+  close.addEventListener('click', dismiss);
+  setTimeout(dismiss, 3000);
+}
+
+/* throttle util */
+function throttle(fn, wait){ let last=0, t; return (...args)=>{ const now = Date.now(); if(now - last > wait){ last = now; fn(...args); } else { clearTimeout(t); t = setTimeout(()=>{ last = Date.now(); fn(...args); }, wait - (now - last)); } }; }
+
+/* top-level renderAll that calls the parts */
+async function renderAll(){ try{ renderStats(); await renderDashboardList(); await renderHistoryList(); populateSelects(); renderManage(); }catch(err){ console.error('renderAll failed', err); } }
+
+/* initial boot */
+load();
+renderAll();
+showView('dashboard');
+
+/* Set default month & dates */
+const thisMonth = new Date().toISOString().slice(0, 7);
+if (el('historyMonth')) el('historyMonth').value = thisMonth;
+
+// centralize expectedReturn min logic
+function setExpectedReturnMin() {
+  const today = new Date().toISOString().split('T')[0];
+  if (el('borrowDate')) el('borrowDate').value = today;
+  if (el('expectedReturn')) {
+    el('expectedReturn').value = el('expectedReturn').value || today;
+    el('expectedReturn').min = today;
+    // keep a manual-change flag when user edits it
+    el('expectedReturn').addEventListener('change', () => { el('expectedReturn').dataset.manualChange = '1'; });
+  }
+  if (el('returnDate')) el('returnDate').value = today;
+}
+setExpectedReturnMin();
+
+if(el('borrowDate')) el('borrowDate').addEventListener('change', e => {
+  const ex = el('expectedReturn');
+  if (ex && !ex.dataset.manualChange) {
+    ex.value = e.target.value;
+    ex.min = e.target.value;
+  }
+});
+
+// Enhance preview after processPhotoInput by adding remove button
+function enhancePhotoPreview(containerId, inputId, previewId) {
+    const container = document.getElementById(containerId);
+    const inputEl = document.getElementById(inputId);
+    const previewEl = document.getElementById(previewId);
+    if(!container || !inputEl || !previewEl) return;
+
+    const observer = new MutationObserver(() => {
+        if (previewEl.querySelector('img')) {
+            container.classList.add('has-image');
+            if (!container.querySelector('.btn-remove-photo')) {
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'btn-remove-photo';
+                removeBtn.textContent = 'Hapus';
+                removeBtn.addEventListener('click', (ev) => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    showConfirm('Hapus foto ini?', () => {
+                      inputEl.value = '';
+                      inputEl.dataset.photoId = '';
+                      previewEl.innerHTML = '';
+                      container.classList.remove('has-image');
+                    });
+                });
+                container.appendChild(removeBtn);
+            }
+        } else {
+            container.classList.remove('has-image');
+            const btn = container.querySelector('.btn-remove-photo');
+            if (btn) btn.remove();
         }
-      });
-    } catch (e) {
-      console.error('submitLupaTiket: gagal fetch dari Firestore, fallback ke cache', e);
+    });
+    observer.observe(previewEl, { childList: true });
+}
+
+function resetPhotoFrame(containerId, inputId, previewId) {
+    const container = document.getElementById(containerId);
+    const inputEl = document.getElementById(inputId);
+    const previewEl = document.getElementById(previewId);
+    if(inputEl) {
+        try{ inputEl.value = ''; }catch(e){}
+        try{ inputEl.dataset.photoId = ''; }catch(e){}
+        try{ inputEl.removeAttribute('required'); }catch(e){}
+    }
+    if(previewEl) previewEl.innerHTML = '';
+    if(container) container.classList.remove('has-image');
+    const btn = container ? container.querySelector('.btn-remove-photo') : null;
+    if (btn) btn.remove();
+}
+
+// wire up enhancements
+document.addEventListener('DOMContentLoaded', () => {
+    enhancePhotoPreview('borrowPhotoContainer', 'borrowPhoto', 'borrowPreview');
+    enhancePhotoPreview('returnPhotoContainer', 'returnPhoto', 'returnPreview');
+    hideProgress();
+});
+
+function showProgress(message, percent) {
+  const overlay = el('progressOverlay');
+  const bar = el('progressBar');
+  const text = el('progressText');
+  if (overlay && bar && text) {
+    overlay.style.display = 'flex';
+    text.textContent = message;
+    bar.style.width = percent + '%';
+  }
+}
+
+function hideProgress() {
+  const overlay = el('progressOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+// expose some helpers for debugging in console if needed
+window.simisaHelpers = { clearPhotoCache, getCachedPhoto };
+
+/* Confirmation Modal — SiMERY style */
+function showConfirm(message, onConfirm) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(7,89,133,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;padding:16px;backdrop-filter:blur(6px);';
+
+  const box = document.createElement('div');
+  box.style.cssText = 'background:#fff;padding:24px;border-radius:20px;max-width:320px;width:100%;text-align:center;box-shadow:0 16px 48px rgba(14,165,233,0.2);';
+
+  const icon = document.createElement('div');
+  icon.style.cssText = 'width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#fef2f2,#fee2e2);border:2px solid #fecaca;display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 16px;';
+  icon.textContent = '⚠️';
+
+  const msg = document.createElement('div');
+  msg.textContent = message;
+  msg.style.cssText = 'margin-bottom:20px;font-weight:600;color:#0f172a;line-height:1.5;font-size:14px;';
+
+  const actions = document.createElement('div');
+  actions.style.cssText = 'display:flex;gap:10px;';
+
+  const yesBtn = document.createElement('button');
+  yesBtn.className = 'btn danger';
+  yesBtn.style.flex = '1';
+  yesBtn.textContent = 'Ya, Hapus';
+  yesBtn.onclick = () => { overlay.remove(); if (typeof onConfirm === 'function') onConfirm(); };
+
+  const noBtn = document.createElement('button');
+  noBtn.className = 'btn ghost';
+  noBtn.style.flex = '1';
+  noBtn.textContent = 'Batal';
+  noBtn.onclick = () => overlay.remove();
+
+  actions.appendChild(noBtn);
+  actions.appendChild(yesBtn);
+  box.appendChild(icon);
+  box.appendChild(msg);
+  box.appendChild(actions);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+// Save school data when it changes
+function saveSchoolData() {
+  try {
+    const schoolName = el('schoolName')?.value?.trim() || '';
+    const headmasterName = el('headmasterName')?.value?.trim() || '';
+    const headmasterNIP = el('headmasterNIP')?.value?.trim() || '';
+    localStorage.setItem('simisa_school_name', schoolName);
+    localStorage.setItem('simisa_headmaster_name', headmasterName);
+    localStorage.setItem('simisa_headmaster_nip', headmasterNIP);
+  } catch (e) {
+    console.error('Failed to save school data', e);
+  }
+}
+
+// Load school data on startup
+function loadSchoolData() {
+  try {
+    const savedName = localStorage.getItem('simisa_school_name') || '';
+    const savedHeadmaster = localStorage.getItem('simisa_headmaster_name') || '';
+    const savedNIP = localStorage.getItem('simisa_headmaster_nip') || '';
+    if (el('schoolName')) {
+      el('schoolName').value = savedName;
+    }
+    if (el('headmasterName')) {
+      el('headmasterName').value = savedHeadmaster;
+    }
+    if (el('headmasterNIP')) {
+      el('headmasterNIP').value = savedNIP;
+    }
+  } catch (e) {
+    console.error('Failed to load school data', e);
+  }
+}
+
+// Wire up the school data input fields
+document.addEventListener('DOMContentLoaded', () => {
+  // Load school data when page loads
+  setTimeout(() => {
+    loadSchoolData();
+    
+    // Save school data when inputs change
+    if (el('schoolName')) {
+      el('schoolName').addEventListener('input', throttle(saveSchoolData, 500));
+    }
+    if (el('headmasterName')) {
+      el('headmasterName').addEventListener('input', throttle(saveSchoolData, 500));
+    }
+    if (el('headmasterNIP')) {
+      el('headmasterNIP').addEventListener('input', throttle(saveSchoolData, 500));
+    }
+  }, 100);
+});
+
+// Manage tab filters event listeners
+document.querySelectorAll('#manage [data-filter]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    manageFilter = btn.dataset.filter;
+    // Update active state for manage filters only
+    document.querySelectorAll('#manage [data-filter]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderManage();
+  });
+});
+
+// Also need to set the initial active state for "Semua" button in manage tab
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    // Set initial active state for manage filters
+    const manageAllBtn = document.querySelector('#manage [data-filter="all"]');
+    if (manageAllBtn) {
+      manageAllBtn.classList.add('active');
+    }
+  }, 100);
+});
+
+/* ══════════════════════════════════════════════
+   QR SCANNER — Peminjaman & Pengembalian
+   jsQR loaded locally as jsQR.js
+   ══════════════════════════════════════════════ */
+
+const QRScanner = (() => {
+  let activeStream = null;
+  let scanRafId    = null;
+  let scannerMode  = null; // 'borrow' | 'return'
+
+  function getJsQR() {
+    // jsQR bundles as UMD — may be window.jsQR or module.exports style
+    return (typeof jsQR !== 'undefined' && jsQR) ||
+           (typeof window.jsQR !== 'undefined' && window.jsQR) ||
+           null;
+  }
+
+  function stopAll() {
+    if (scanRafId) { cancelAnimationFrame(scanRafId); scanRafId = null; }
+    if (activeStream) { activeStream.getTracks().forEach(t => t.stop()); activeStream = null; }
+    if (scannerMode) {
+      if (scannerMode === 'quick') _closeModal('quickScanModal');
+      const v = el(scannerMode + 'QrVideo');
+      const c = el(scannerMode + 'QrScanner');
+      const b = el(scannerMode + 'ScanQrBtn');
+      if (v) v.srcObject = null;
+      if (c) c.style.display = 'none';
+      if (b) b.style.display = '';
+      scannerMode = null;
     }
   }
 
-  // Bersihkan pesan loading
-  document.getElementById('lupaTiketAlert').innerHTML = '';
+  function parseQr(raw) {
+    try {
+      const d = JSON.parse(raw);
+      if (d && d.type === 'simisa-item' && d.id) return d.id;
+    } catch(e) {}
+    if (typeof raw === 'string' && raw.startsWith('itm-')) return raw.trim();
+    return null;
+  }
 
-  // Filter dari gabungan cache + hasil fetch
-  const found = tickets.filter(t => {
-    const ticketSchoolId = String(t.schoolId || t.schoolID || t.npsn || t.schoolNpsn || '').trim();
-    if (ticketSchoolId !== schoolId) return false;
+  function applyItem(itemId, mode) {
+    const item     = state.items.find(x => x.id === itemId);
 
-    const ticketWA = normalizeWA(t.wa || t.phone || t.whatsapp || '');
-    const waMatch = ticketWA && waNorm && (ticketWA === waNorm || ticketWA.endsWith(waNorm) || waNorm.endsWith(ticketWA));
+    if (!item) { showToast('Barang tidak ditemukan', 'warning'); return false; }
+    if (mode === 'quick') {
+      if (item.status === 'available') {
+        openBorrowModal(itemId);
+        showToast(`QR dikenali: lanjut proses peminjaman "${item.name}"`, 'success');
+      } else {
+        openReturnModal(itemId);
+        showToast(`QR dikenali: lanjut proses pengembalian "${item.name}"`, 'success');
+      }
+      return true;
+    }
 
-    if (!waMatch) {
-      // Coba cocokkan via email jika diisi
-      if (email && t.email && t.email.toLowerCase() === email) return true;
+    const selectEl = el(mode === 'borrow' ? 'borrowSelect' : 'returnSelect');
+    const infoEl   = el(mode === 'borrow' ? 'borrowItemInfo' : 'returnItemInfo');
+    if (mode === 'borrow' && item.status !== 'available') {
+      showToast(`"${item.name}" sedang dipinjam oleh ${item.borrowedBy || 'seseorang'}`, 'warning');
       return false;
     }
-    return true;
-  });
+    if (mode === 'return' && item.status !== 'borrowed') {
+      showToast(`"${item.name}" tidak sedang dipinjam`, 'warning');
+      return false;
+    }
 
-  // Tampilkan hasil
-  document.getElementById('lupaTiketStep1').style.display = 'none';
-  document.getElementById('lupaTiketStep2').style.display = '';
-
-  const resultsEl = document.getElementById('lupaTiketResults');
-
-  if (found.length === 0) {
-    resultsEl.innerHTML = `
-      <div class="alert alert-warning">
-        <div class="alert-icon">${SVGIcons.info}</div>
-        <div>
-          <strong>Tiket tidak ditemukan</strong><br>
-          Tidak ada laporan yang cocok dengan nomor HP dan sekolah yang Anda masukkan. Pastikan nomor HP dan nama sekolah sesuai dengan yang digunakan saat melapor.
-        </div>
+    if (selectEl) selectEl.value = itemId;
+    if (infoEl) {
+      infoEl.innerHTML = `<div class="modal-item-info-text">
+        <div class="modal-item-info-name">${escapeHtml(item.name)}</div>
+        <div class="modal-item-info-cat">${
+          mode === 'borrow'
+            ? (item.category ? escapeHtml(item.category) : '')
+            : (item.borrowedBy ? 'Dipinjam oleh: ' + escapeHtml(item.borrowedBy) : '')
+        }</div>
       </div>`;
-    return;
+      infoEl.classList.add('visible');
+    }
+    return true;
   }
 
-  const statusBadge = (s) => {
-    const styles = { 'Baru': 'background:var(--warning-pale);color:var(--warning)', 'Dalam Proses': 'background:var(--primary-pale);color:var(--primary-light)', 'Selesai': 'background:var(--success-pale);color:var(--success)' };
-    const style = styles[s] || styles['Baru'];
-    return `<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;${style}">${s || 'Baru'}</span>`;
-  };
+  async function start(mode) {
+    const lib = getJsQR();
+    if (!lib) {
+      showToast('Library QR tidak ditemukan, pastikan jsQR.js ada di folder yang sama', 'danger');
+      console.error('jsQR not found. window.jsQR=', window.jsQR, 'typeof jsQR=', typeof jsQR);
+      return;
+    }
 
-  const rows = found.map(t => `
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid var(--border)">
-      <div>
-        <div style="font-family:monospace;font-size:15px;font-weight:700;color:var(--primary);letter-spacing:0.5px">${t.id}</div>
-        <div style="font-size:12px;color:var(--text-3);margin-top:2px">${t.topic || ''} · ${t.date ? new Date(t.date).toLocaleDateString('id-ID') : ''}</div>
-        <div style="margin-top:4px">${statusBadge(t.status)}</div>
-      </div>
-      <button class="btn btn-sm btn-outline" onclick="closeLupaTiketAndTrack('${t.id}')" style="flex-shrink:0">
-        ${SVGIcons.search} Lacak
-      </button>
-    </div>`).join('');
+    stopAll();
+    scannerMode = mode;
+    if (mode === 'quick') _openModal('quickScanModal');
 
-  resultsEl.innerHTML = `
-    <div style="margin-bottom:12px">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-        <span style="font-weight:600;color:var(--success)">Ditemukan ${found.length} laporan</span>
-      </div>
-      <div style="font-size:12px;color:var(--text-3)">Nomor HP: <strong>${wa}</strong> · Sekolah: <strong>${schoolName}</strong></div>
-    </div>
-    <div>${rows}</div>`;
-}
+    const videoEl     = el(mode + 'QrVideo');
+    const canvasEl    = el(mode + 'QrCanvas');
+    const containerEl = el(mode + 'QrScanner');
+    const scanBtnEl   = el(mode + 'ScanQrBtn');
 
-function closeLupaTiketAndTrack(ticketId) {
-  closeLupaTiket();
-  // Aktifkan halaman tracking tanpa reset, lalu isi input dan lacak
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById('page-tracking').classList.add('active');
-  updateSidebarActive('tracking');
-  document.getElementById('trackInput').value = ticketId;
-  _setLupaTiketBtnVisible(false);
-  setTimeout(() => trackReport(), 100);
-}
+    if (!videoEl || !canvasEl || !containerEl) {
+      console.error('QR scanner elements not found for mode:', mode);
+      return;
+    }
+
+    // Add scan line if missing
+    const frame = containerEl.querySelector('.qr-scanner-frame');
+    if (frame && !frame.querySelector('.scan-line')) {
+      const line = document.createElement('div');
+      line.className = 'scan-line';
+      frame.appendChild(line);
+    }
+
+    containerEl.style.display = 'block';
+    containerEl.classList.remove('qr-success');
+    if (scanBtnEl) scanBtnEl.style.display = 'none';
+
+    setTimeout(() => containerEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
+      activeStream = stream;
+      videoEl.srcObject = stream;
+      await videoEl.play();
+    } catch(err) {
+      console.error('Camera access failed:', err);
+      const msg = err.name === 'NotAllowedError'
+        ? 'Izin kamera ditolak. Izinkan akses kamera di browser.'
+        : 'Tidak dapat membuka kamera: ' + err.message;
+      showToast(msg, 'danger');
+      stopAll();
+      return;
+    }
+
+    const ctx = canvasEl.getContext('2d');
+    let lastTs = 0;
+
+    function tick(ts) {
+      if (videoEl.readyState < videoEl.HAVE_ENOUGH_DATA) {
+        scanRafId = requestAnimationFrame(tick);
+        return;
+      }
+      // throttle to ~8fps to save battery
+      if (ts - lastTs < 125) { scanRafId = requestAnimationFrame(tick); return; }
+      lastTs = ts;
+
+      canvasEl.width  = videoEl.videoWidth;
+      canvasEl.height = videoEl.videoHeight;
+      ctx.drawImage(videoEl, 0, 0);
+
+      const imgData = ctx.getImageData(0, 0, canvasEl.width, canvasEl.height);
+      const code = lib(imgData.data, imgData.width, imgData.height, { inversionAttempts: 'dontInvert' });
+
+      if (code) {
+        const itemId = parseQr(code.data);
+        if (itemId) {
+          containerEl.classList.add('qr-success');
+          const ok = applyItem(itemId, mode);
+          stopAll();
+          if (ok) {
+            if (mode !== 'quick') {
+              showToast('Barang berhasil diidentifikasi', 'success');
+              setTimeout(() => {
+                const body = el(mode + 'Modal')?.querySelector('.form-modal-body');
+                if (body) body.scrollTo({ top: 0, behavior: 'smooth' });
+              }, 200);
+            }
+          }
+          return;
+        }
+      }
+
+      scanRafId = requestAnimationFrame(tick);
+    }
+    scanRafId = requestAnimationFrame(tick);
+  }
+
+  function init() {
+    ['borrow', 'return', 'quick'].forEach(mode => {
+      const scanBtn   = el(mode + 'ScanQrBtn');
+      const cancelBtn = el(mode + 'ScanCancelBtn');
+      if (scanBtn)   scanBtn.addEventListener('click',   () => start(mode));
+      if (cancelBtn) cancelBtn.addEventListener('click', () => stopAll());
+    });
+    const quickCloseBtn = el('quickScanCloseBtn');
+    if (quickCloseBtn) quickCloseBtn.addEventListener('click', () => stopAll());
+  }
+
+  return { init, stopAll, start };
+})();
+
+// Patch close functions to stop camera
+(function() {
+  const _closeBorrow = window.closeBorrowModal;
+  const _closeReturn = window.closeReturnModal;
+  window.closeBorrowModal = function() { QRScanner.stopAll(); if (_closeBorrow) _closeBorrow(); };
+  window.closeReturnModal = function() { QRScanner.stopAll(); if (_closeReturn) _closeReturn(); };
+})();
+
+document.addEventListener('DOMContentLoaded', () => QRScanner.init());
