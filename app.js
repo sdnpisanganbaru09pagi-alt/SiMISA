@@ -1642,16 +1642,24 @@ if(el('returnForm')) el('returnForm').addEventListener('submit', async e=> {
 });
 
 /* Photo inputs */
+async function handlePhotoChange(e, previewId) {
+  const selectedFile = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+  if (!selectedFile) return;
+
+  const previousPhotoId = e.target.dataset.photoId || '';
+  const photoId = await processPhotoInput(selectedFile, el(previewId));
+  if (photoId) e.target.dataset.photoId = photoId;
+  else if (!previousPhotoId) e.target.dataset.photoId = '';
+}
+
 if(el('borrowPhoto')) el('borrowPhoto').addEventListener('change', async e => {
-  const photoId = await processPhotoInput(e.target.files[0], el('borrowPreview'));
-  e.target.dataset.photoId = photoId || '';
+  await handlePhotoChange(e, 'borrowPreview');
   const body = el('borrowModal')?.querySelector('.form-modal-body');
   setTimeout(() => { if(body) body.scrollTo({ top: body.scrollHeight, behavior: 'smooth' }); }, 300);
 });
 
 if(el('returnPhoto')) el('returnPhoto').addEventListener('change', async e => {
-  const photoId = await processPhotoInput(e.target.files[0], el('returnPreview'));
-  e.target.dataset.photoId = photoId || '';
+  await handlePhotoChange(e, 'returnPreview');
   const body = el('returnModal')?.querySelector('.form-modal-body');
   setTimeout(() => { if(body) body.scrollTo({ top: body.scrollHeight, behavior: 'smooth' }); }, 300);
 });
