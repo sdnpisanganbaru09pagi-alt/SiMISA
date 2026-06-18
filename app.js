@@ -1339,10 +1339,11 @@ function dataURLtoBlob(dataurl) {
 
 
 
-const SIGNATURE_EXPORT_MAX_WIDTH = 640;
-const SIGNATURE_EXPORT_MAX_HEIGHT = 260;
-const SIGNATURE_EXPORT_PADDING = 12;
-const SIGNATURE_EXPORT_MIME = 'image/png';
+const SIGNATURE_EXPORT_MAX_WIDTH = 320;
+const SIGNATURE_EXPORT_MAX_HEIGHT = 140;
+const SIGNATURE_EXPORT_PADDING = 10;
+const SIGNATURE_EXPORT_QUALITY = 0.68;
+const SIGNATURE_EXPORT_MIME = 'image/jpeg';
 
 function blobToDataURL(blob) {
   return new Promise((resolve) => {
@@ -1371,25 +1372,17 @@ function getDataUrlPdfFormat(dataUrl) {
   return type === 'jpg' || type === 'jpeg' ? 'JPEG' : type.toUpperCase();
 }
 
-function isSignaturePixel(data, index) {
-  const red = data[index];
-  const green = data[index + 1];
-  const blue = data[index + 2];
-  const alpha = data[index + 3];
-
-  if (alpha <= 10) return false;
-
-  // Transparent canvas backgrounds have alpha 0. JPEG/WebP fallbacks may have
-  // white backgrounds, so ignore near-white pixels and keep actual ink strokes.
-  return red < 245 || green < 245 || blue < 245;
-}
-
 function canvasHasInk(canvas) {
   try {
-    return Boolean(getCanvasInkBounds(canvas));
+    const ctx = canvas.getContext('2d');
+    const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    for (let i = 3; i < data.length; i += 4) {
+      if (data[i] > 10) return true;
+    }
   } catch (e) {
     return true;
   }
+  return false;
 }
 
 function getCanvasInkBounds(canvas) {
@@ -1400,8 +1393,8 @@ function getCanvasInkBounds(canvas) {
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      const pixelIndex = (y * width + x) * 4;
-      if (isSignaturePixel(data, pixelIndex)) {
+      const alpha = data[((y * width + x) * 4) + 3];
+      if (alpha > 10) {
         if (x < minX) minX = x;
         if (y < minY) minY = y;
         if (x > maxX) maxX = x;
@@ -1437,10 +1430,12 @@ function optimizeSignatureCanvasForStorage(canvas) {
     out.width = outW;
     out.height = outH;
     const outCtx = out.getContext('2d');
+    outCtx.fillStyle = '#fff';
+    outCtx.fillRect(0, 0, outW, outH);
     outCtx.imageSmoothingEnabled = true;
     outCtx.imageSmoothingQuality = 'high';
     outCtx.drawImage(canvas, srcX, srcY, srcW, srcH, 0, 0, outW, outH);
-    return out.toDataURL(SIGNATURE_EXPORT_MIME);
+    return out.toDataURL(SIGNATURE_EXPORT_MIME, SIGNATURE_EXPORT_QUALITY);
   } catch (e) {
     console.warn('Signature optimization failed, using original canvas data', e);
     return canvas.toDataURL();
@@ -1479,10 +1474,12 @@ async function optimizeSignatureDataUrlForPdf(dataUrl) {
     out.width = outW;
     out.height = outH;
     const ctx = out.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, outW, outH);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(source, srcX, srcY, srcW, srcH, 0, 0, outW, outH);
-    return out.toDataURL(SIGNATURE_EXPORT_MIME);
+    return out.toDataURL(SIGNATURE_EXPORT_MIME, SIGNATURE_EXPORT_QUALITY);
   } catch (e) {
     console.warn('PDF signature optimization failed, using original image', e);
     return dataUrl;
