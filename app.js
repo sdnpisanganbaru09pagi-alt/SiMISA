@@ -1337,6 +1337,158 @@ function dataURLtoBlob(dataurl) {
   }
 }
 
+
+
+const SIGNATURE_EXPORT_MAX_WIDTH = 640;
+const SIGNATURE_EXPORT_MAX_HEIGHT = 260;
+const SIGNATURE_EXPORT_PADDING = 12;
+const SIGNATURE_EXPORT_MIME = 'image/png';
+
+function blobToDataURL(blob) {
+  return new Promise((resolve) => {
+    if (!blob) return resolve('');
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result || '');
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(blob);
+  });
+}
+
+function loadImageFromDataURL(dataUrl) {
+  return new Promise((resolve) => {
+    if (!dataUrl) return resolve(null);
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+
+function getDataUrlPdfFormat(dataUrl) {
+  const match = String(dataUrl || '').match(/^data:image\/(png|jpe?g|webp);/i);
+  if (!match) return 'PNG';
+  const type = match[1].toLowerCase();
+  return type === 'jpg' || type === 'jpeg' ? 'JPEG' : type.toUpperCase();
+}
+
+function isSignaturePixel(data, index) {
+  const red = data[index];
+  const green = data[index + 1];
+  const blue = data[index + 2];
+  const alpha = data[index + 3];
+
+  if (alpha <= 10) return false;
+
+  // Transparent canvas backgrounds have alpha 0. JPEG/WebP fallbacks may have
+  // white backgrounds, so ignore near-white pixels and keep actual ink strokes.
+  return red < 245 || green < 245 || blue < 245;
+}
+
+function canvasHasInk(canvas) {
+  try {
+    return Boolean(getCanvasInkBounds(canvas));
+  } catch (e) {
+    return true;
+  }
+}
+
+function getCanvasInkBounds(canvas) {
+  const ctx = canvas.getContext('2d');
+  const { width, height } = canvas;
+  const { data } = ctx.getImageData(0, 0, width, height);
+  let minX = width, minY = height, maxX = -1, maxY = -1;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const pixelIndex = (y * width + x) * 4;
+      if (isSignaturePixel(data, pixelIndex)) {
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+
+  if (maxX < minX || maxY < minY) return null;
+  return { minX, minY, maxX, maxY };
+}
+
+function optimizeSignatureCanvasForStorage(canvas) {
+  try {
+    if (!canvas || !canvas.width || !canvas.height || !canvasHasInk(canvas)) return '';
+
+    const bounds = getCanvasInkBounds(canvas);
+    if (!bounds) return '';
+
+    const pad = SIGNATURE_EXPORT_PADDING;
+    const srcX = Math.max(0, bounds.minX - pad);
+    const srcY = Math.max(0, bounds.minY - pad);
+    const srcW = Math.min(canvas.width - srcX, bounds.maxX - bounds.minX + 1 + pad * 2);
+    const srcH = Math.min(canvas.height - srcY, bounds.maxY - bounds.minY + 1 + pad * 2);
+    const scale = Math.min(
+      SIGNATURE_EXPORT_MAX_WIDTH / srcW,
+      SIGNATURE_EXPORT_MAX_HEIGHT / srcH,
+      1
+    );
+    const outW = Math.max(1, Math.round(srcW * scale));
+    const outH = Math.max(1, Math.round(srcH * scale));
+    const out = document.createElement('canvas');
+    out.width = outW;
+    out.height = outH;
+    const outCtx = out.getContext('2d');
+    outCtx.imageSmoothingEnabled = true;
+    outCtx.imageSmoothingQuality = 'high';
+    outCtx.drawImage(canvas, srcX, srcY, srcW, srcH, 0, 0, outW, outH);
+    return out.toDataURL(SIGNATURE_EXPORT_MIME);
+  } catch (e) {
+    console.warn('Signature optimization failed, using original canvas data', e);
+    return canvas.toDataURL();
+  }
+}
+
+async function optimizeSignatureDataUrlForPdf(dataUrl) {
+  try {
+    const img = await loadImageFromDataURL(dataUrl);
+    if (!img) return dataUrl;
+
+    const source = document.createElement('canvas');
+    source.width = img.width;
+    source.height = img.height;
+    const sourceCtx = source.getContext('2d');
+    sourceCtx.drawImage(img, 0, 0);
+    const bounds = getCanvasInkBounds(source) || {
+      minX: 0,
+      minY: 0,
+      maxX: source.width - 1,
+      maxY: source.height - 1
+    };
+    const pad = SIGNATURE_EXPORT_PADDING;
+    const srcX = Math.max(0, bounds.minX - pad);
+    const srcY = Math.max(0, bounds.minY - pad);
+    const srcW = Math.min(source.width - srcX, bounds.maxX - bounds.minX + 1 + pad * 2);
+    const srcH = Math.min(source.height - srcY, bounds.maxY - bounds.minY + 1 + pad * 2);
+    const scale = Math.min(
+      SIGNATURE_EXPORT_MAX_WIDTH / srcW,
+      SIGNATURE_EXPORT_MAX_HEIGHT / srcH,
+      1
+    );
+    const outW = Math.max(1, Math.round(srcW * scale));
+    const outH = Math.max(1, Math.round(srcH * scale));
+    const out = document.createElement('canvas');
+    out.width = outW;
+    out.height = outH;
+    const ctx = out.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(source, srcX, srcY, srcW, srcH, 0, 0, outW, outH);
+    return out.toDataURL(SIGNATURE_EXPORT_MIME);
+  } catch (e) {
+    console.warn('PDF signature optimization failed, using original image', e);
+    return dataUrl;
+  }
+}
+
 async function processPhotoInput(file, previewEl) {
   try{
     if (!file) return null;
@@ -1368,7 +1520,7 @@ function makeSignaturePad(canvasId, clearBtnId) {
   if(!canvas) return null;
 
   const ctx = canvas.getContext('2d');
-  const dpr = window.devicePixelRatio || 1;
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
 
   // Sync canvas internal resolution to its CSS rendered size
   function syncSize() {
@@ -1454,8 +1606,8 @@ function makeSignaturePad(canvasId, clearBtnId) {
       const blank = document.createElement('canvas');
       blank.width  = canvas.width;
       blank.height = canvas.height;
-      return canvas.toDataURL() === blank.toDataURL() ? '' : canvas.toDataURL();
-    } catch(e) { return canvas.toDataURL(); }
+      return canvas.toDataURL() === blank.toDataURL() ? '' : optimizeSignatureCanvasForStorage(canvas);
+    } catch(e) { return optimizeSignatureCanvasForStorage(canvas) || canvas.toDataURL(); }
   }
 
   return { getDataUrl, clear: () => ctx.clearRect(0, 0, canvas.width, canvas.height) };
@@ -1785,13 +1937,9 @@ monthData.forEach(h => {
       
       for (let i = 0; i < idArray.length; i++) {
         if (blobs[i]) {
-          // Convert blob to data URL for PDF
-          const dataUrl = await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.readAsDataURL(blobs[i]);
-          });
-          signatureDataUrls[idArray[i]] = dataUrl;
+          // Convert and downsample signatures before embedding them into the PDF.
+          const dataUrl = await blobToDataURL(blobs[i]);
+          signatureDataUrls[idArray[i]] = await optimizeSignatureDataUrlForPdf(dataUrl);
         }
         showProgress(`Memproses tanda tangan ${i + 1}/${idArray.length}...`, 30 + (i / idArray.length) * 40);
       }
@@ -1924,13 +2072,16 @@ monthData.forEach(h => {
               const imgX = data.cell.x + (data.cell.width - imgWidth) / 2;
               const imgY = data.cell.y + (data.cell.height - imgHeight) / 2;
               
+              const signDataUrl = signatureDataUrls[item.borrowSignPhoto];
               doc.addImage(
-                signatureDataUrls[item.borrowSignPhoto],
-                'PNG',
+                signDataUrl,
+                getDataUrlPdfFormat(signDataUrl),
                 imgX,
                 imgY,
                 imgWidth,
-                imgHeight
+                imgHeight,
+                `borrow-sign-${item.borrowSignPhoto}`,
+                'FAST'
               );
             } catch (e) {
               console.warn('Failed to add borrow signature:', e);
@@ -1945,13 +2096,16 @@ monthData.forEach(h => {
               const imgX = data.cell.x + (data.cell.width - imgWidth) / 2;
               const imgY = data.cell.y + (data.cell.height - imgHeight) / 2;
               
+              const signDataUrl = signatureDataUrls[item.returnSignPhoto];
               doc.addImage(
-                signatureDataUrls[item.returnSignPhoto],
-                'PNG',
+                signDataUrl,
+                getDataUrlPdfFormat(signDataUrl),
                 imgX,
                 imgY,
                 imgWidth,
-                imgHeight
+                imgHeight,
+                `return-sign-${item.returnSignPhoto}`,
+                'FAST'
               );
             } catch (e) {
               console.warn('Failed to add return signature:', e);
